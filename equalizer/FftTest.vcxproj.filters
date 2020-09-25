@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="fft_test.cpp" />
+    <ClCompile Include="arena.cpp" />
+    <ClCompile Include="fft.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="arena.h" />
+    <ClInclude Include="fft.h" />
+    <ClInclude Include="macro.h" />
+  </ItemGroup>
+</Project>

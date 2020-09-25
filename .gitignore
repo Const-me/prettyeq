@@ -58,3 +58,7 @@ compile_commands.json
 /prettyeq
 /build
 /.vscode
+equalizer/.vs/
+equalizer/x64/
+
+*.user
