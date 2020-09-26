@@ -13,8 +13,7 @@
 #include <immintrin.h>
 #include "fftSimd.h"
 #include "complex.h"
-// #include "reverseBits.h"
-#include "reverseBits2.h"
+#include "reverseBits.h"
 
 static bool initialized = false;
 static complex omega_vec[ K ][ MAX_SAMPLES ];
