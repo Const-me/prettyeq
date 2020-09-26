@@ -1,6 +1,15 @@
 #include "stdafx.h"
 #include "reverseBits.h"
 
+#ifdef _MSC_VER
+inline uint32_t bs16( uint32_t x ) { return _byteswap_ushort( (uint16_t)x ); }
+inline uint32_t bs32( uint32_t x ) { return _byteswap_ulong( x ); }
+#else
+// Assuming gcc or clang; intel has yet another name, _bswap().
+inline uint32_t bs16( uint32_t x ) { return __builtin_bswap16( (uint16_t)x ); }
+inline uint32_t bs32( uint32_t x ) { return __builtin_bswap32( x ); }
+#endif
+
 template<int n>
 static uint32_t reverseBitsImpl( uint32_t x )
 {
@@ -15,14 +24,21 @@ static uint32_t reverseBitsImpl( uint32_t x )
 	x = ( ( x & 0x0F0F0F0F ) << 4 ) | ( ( x & 0xF0F0F0F0 ) >> 4 );
 	if constexpr( n <= 8 )
 	{
+		// Flipping no more than 8 bits, no need to process other bytes
 		constexpr int lastShift = ( 8 - ( n % 8 ) ) % 8;
 		if constexpr( 0 == lastShift )
 			return x;
 		return x >> lastShift;
 	}
-
 	// Flip bytes, there's an instruction for that, pretty fast
-	x = _byteswap_ulong( x );
+
+	if constexpr( n == 16 )
+	{
+		// When flipping exactly 16 bit, we only need to swap 2 bytes, no extra shifts needed then.
+		return bs16( x );
+	}
+
+	x = bs32( x );
 	constexpr int lastShift = ( 32 - n ) % 32;
 	if constexpr( 0 == lastShift )
 		return x;

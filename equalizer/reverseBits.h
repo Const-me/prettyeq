@@ -2,8 +2,11 @@
 #include <stdint.h>
 
 // Utility class to reverse lowest N bits in an integer.
+// The original code runs way too many instructions.
 struct ReverseBits
 {
+	// CPUs have indirect branch predictor, gonna help because the client code will `call rbx` over and over again with the same address.
+	// We have 33 separate implementations, all of them are branchless and contain minimum count of instructions, and therefore latency.
 	using pfn = uint32_t( *)( uint32_t x );
 	const pfn m_pfn;
 
