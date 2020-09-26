@@ -38,40 +38,7 @@ static inline unsigned int reverse_bits( unsigned int n, unsigned int num_bits )
 	return res;
 }
 
-/* static inline unsigned int get_msb( unsigned int v )
-{
-	static const unsigned int b[] = { 0x2, 0xC, 0xF0, 0xFF00, 0xFFFF0000 };
-	static const unsigned int S[] = { 1, 2, 4, 8, 16 };
-
-	register unsigned int r = 0;
-
-	if( v & b[ 4 ] )
-	{
-		v >>= S[ 4 ];
-		r |= S[ 4 ];
-	}
-	if( v & b[ 3 ] )
-	{
-		v >>= S[ 3 ];
-		r |= S[ 3 ];
-	}
-	if( v & b[ 2 ] )
-	{
-		v >>= S[ 2 ];
-		r |= S[ 2 ];
-	}
-	if( v & b[ 1 ] )
-	{
-		v >>= S[ 1 ];
-		r |= S[ 1 ];
-	}
-	if( v & b[ 0 ] )
-	{
-		v >>= S[ 0 ];
-		r |= S[ 0 ];
-	}
-	return r;
-} */
+// Processors have an instruction for that, very fast.
 static inline unsigned int get_msb( unsigned int v )
 {
 	assert( 0 != v );
