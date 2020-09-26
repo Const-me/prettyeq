@@ -208,9 +208,20 @@ void fft_run( const float *input_data, complex *output_data, unsigned int N, uns
 			/* Pad out so FFT is a power of 2. */
 			msb++;
 			unsigned int new_N = 1 << msb;
+#if 0
 			for( unsigned int i = N; i < new_N; i++ )
-				output_data[ i ] = 0.0f;
-
+			 	output_data[ i ] = 0.0f;
+#else
+			static_assert( sizeof( complex ) == 8 );
+			complex* pointer = &output_data[ N ];
+			const uint32_t count = new_N - N;
+			complex* const pointerEndAligned = pointer + ( count & ~1u );
+			const __m128 zero = _mm_setzero_ps();
+			for( ; pointer < pointerEndAligned; pointer += 2 )
+				_mm_storeu_ps( (float*)pointer, zero );
+			if( pointer < pointer + count )
+				storeFloat2( pointer, zero );
+#endif
 			N = new_N;
 		}
 
