@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="__m128">
+		<DisplayString>[ { m128_f32[ 0 ] }, { m128_f32[ 1 ] }, { m128_f32[ 2 ] }, { m128_f32[ 3 ] } ]</DisplayString>
+	</Type>
+	<Type Name="__m128i">
+		<DisplayString>[ { m128i_i32[ 0 ] }, { m128i_i32[ 1 ] }, { m128i_i32[ 2 ] }, { m128i_i32[ 3 ] } ]</DisplayString>
+	</Type>
+	<Type Name="__m256d">
+		<DisplayString>[ { m256d_f64[ 0 ] }, { m256d_f64[ 1 ] }, { m256d_f64[ 2 ] }, { m256d_f64[ 3 ] } ]</DisplayString>
+	</Type>
+</AutoVisualizer>

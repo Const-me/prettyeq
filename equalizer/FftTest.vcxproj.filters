@@ -5,11 +5,17 @@
     <ClCompile Include="fft_test.cpp" />
     <ClCompile Include="arena.cpp" />
     <ClCompile Include="fft.cpp" />
+    <ClCompile Include="fftSimd.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="arena.h" />
     <ClInclude Include="fft.h" />
     <ClInclude Include="macro.h" />
+    <ClInclude Include="fftSimd.h" />
+    <ClInclude Include="Stopwatch.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="sse.natvis" />
   </ItemGroup>
 </Project>
