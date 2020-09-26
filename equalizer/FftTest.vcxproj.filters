@@ -6,7 +6,7 @@
     <ClCompile Include="arena.cpp" />
     <ClCompile Include="fft.cpp" />
     <ClCompile Include="fftSimd.cpp" />
-    <ClCompile Include="reverseBits.cpp" />
+    <ClCompile Include="reverseBits2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -16,7 +16,7 @@
     <ClInclude Include="fftSimd.h" />
     <ClInclude Include="Stopwatch.hpp" />
     <ClInclude Include="complex.h" />
-    <ClInclude Include="reverseBits.h" />
+    <ClInclude Include="reverseBits2.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="sse.natvis" />

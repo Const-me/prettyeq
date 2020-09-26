@@ -13,6 +13,8 @@
 #include <immintrin.h>
 #include "fftSimd.h"
 #include "complex.h"
+// #include "reverseBits.h"
+#include "reverseBits2.h"
 
 static bool initialized = false;
 static complex omega_vec[ K ][ MAX_SAMPLES ];
@@ -194,9 +196,17 @@ void fft_run( const float *input_data, complex *output_data, unsigned int N, uns
 
 		/* Reverse the input array. */
 		unsigned int hi_bit = msb - 1;
+		const ReverseBits reverseBits{ msb };
 		for( unsigned int i = 0; i < N; i++ )
 		{
-			unsigned int r = reverse_bits( i, hi_bit );
+#if 0
+			unsigned int r1 = reverse_bits( i, hi_bit );
+			unsigned int r2 = reverseBits( i );
+			assert( r1 == r2 );
+			const unsigned int r = r1;
+#else
+			const unsigned int r = reverseBits( i );
+#endif
 			if( i < r )
 				std::swap( output_data[ i ], output_data[ r ] );
 		}

@@ -9,6 +9,7 @@
 #endif
 
 #include <stdio.h>
+#include <assert.h>
 #include <array>
 #include <vector>
 #include <algorithm>
