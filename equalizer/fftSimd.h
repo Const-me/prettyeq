@@ -1,7 +1,7 @@
 #pragma once
 #include <emmintrin.h>
 #include <pmmintrin.h>	// MOVDDUP is from SSE3 set
-#include <complex>
+#include "complex.h"
 
 // ==== Miscellaneous utilities ====
 using XMVECTOR2 = __m128;

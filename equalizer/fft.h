@@ -1,7 +1,7 @@
 #pragma once
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include <complex>
+#include "complex.h"
 
 #define MAX_SAMPLES 4096
 #define K (MAX_SAMPLES / 2)
