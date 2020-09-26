@@ -119,6 +119,68 @@ __forceinline __m128 broadcastLane( __m128 x )
 	return _mm_shuffle_ps( x, x, _MM_SHUFFLE( i, i, i, i ) );
 }
 
+XMVECTOR computeOmegaVec_x2( const XMVECTOR2 angles )
+{
+	__m128 val = angles;
+
+	// [ 1 / ( 2 * pi ), 2 * pi, pi / 2, pi ]
+	const __m128 piConstants = s_piConstants;
+
+	// Map Value to y in [-pi,pi], x = 2*pi*quotient + remainder.
+	const __m128 quotient = _mm_round_ps( _mm_mul_ps( val, _mm_moveldup_ps( piConstants ) ), _MM_FROUND_NINT );
+	__m128 y = _mm_fnmadd_ps( quotient, _mm_movehdup_ps( piConstants ), val );
+
+	// [ sign bit, +1, -1, 0 ]
+	const __m128 miscConstants = s_miscConstants;
+
+	// Map y to [-pi/2,pi/2] with sin(y) = sin(Value).
+	const __m128 signBit = _mm_moveldup_ps( miscConstants );
+	const __m128 yAbs = _mm_andnot_ps( signBit, y );
+	const __m128 pidiv2 = broadcastLane<2>( piConstants );
+	const __m128 absExceeds90Mask = _mm_cmpgt_ps( yAbs, pidiv2 );
+
+	// We don't want to predict any branches here.
+	// Computing both sizes of the "if" and selecting the right one with _mm_blendv_ps.
+	// These extra computations is nothing compared to the cost of branch prediction.
+	const __m128 sign = _mm_and_ps( signBit, y );
+	__m128 pi = broadcastLane<3>( piConstants );
+	pi = _mm_or_ps( pi, sign );
+	const __m128 case1_y = _mm_sub_ps( pi, y );
+	const __m128 case1_cosMul = broadcastLane<2>( miscConstants );	// -1 in all 4 lanes
+	const __m128 case2_cosMul = _mm_movehdup_ps( miscConstants );	// +1 in all 4 lanes
+	const __m128 cosMul = _mm_blendv_ps( case2_cosMul, case1_cosMul, absExceeds90Mask );
+	y = _mm_blendv_ps( y, case1_y, absExceeds90Mask );
+
+	const __m128 finalMultiplier = _mm_unpacklo_ps( cosMul, y );
+	const __m128 y2_all = _mm_mul_ps( y, y );
+	const __m128 y2 = _mm_unpacklo_ps( y2_all, y2_all );
+
+	// Now use FMA to compute the result.
+	// Unlike the code in computeOmegaVec, we now have 2 independent streams of data, 
+	// Should help saturating the EUs despite 4-5 cycles of latency of every FMA instruction.
+	__m128 coeffs = s_sinCosCoeffs0;
+	const __m128 coeffs0_1 = _mm_movelh_ps( coeffs, coeffs );
+	const __m128 coeffs0_2 = _mm_movehl_ps( coeffs, coeffs );
+	__m128 v = _mm_fmadd_ps( y2, coeffs0_1, coeffs0_2 );
+
+	coeffs = s_sinCosCoeffs1;
+	__m128 tmp = _mm_movelh_ps( coeffs, coeffs );
+	v = _mm_fmadd_ps( y2, v, tmp );
+
+	tmp = _mm_movehl_ps( coeffs, coeffs );
+	v = _mm_fmadd_ps( y2, v, tmp );
+
+	coeffs = s_sinCosCoeffs2;
+	tmp = _mm_movelh_ps( coeffs, coeffs );
+	v = _mm_fmadd_ps( y2, v, tmp );
+
+	tmp = _mm_movehl_ps( coeffs, coeffs );
+	v = _mm_fmadd_ps( y2, v, tmp );
+
+	v = _mm_mul_ps( v, finalMultiplier );
+	return v;
+}
+
 std::pair<XMVECTOR, XMVECTOR> computeOmegaVec_x4( const XMVECTOR angles )
 {
 	// [ 1 / ( 2 * pi ), 2 * pi, pi / 2, pi ]

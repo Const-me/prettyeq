@@ -14,6 +14,7 @@
 #include "fftSimd.h"
 #include "complex.h"
 #include "reverseBits.h"
+#include <complex>
 
 static bool initialized = false;
 static complex omega_vec[ K ][ MAX_SAMPLES ];
@@ -107,12 +108,12 @@ static void fft_init_std()
 	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
 	{
 		const float mulDivN = ( n != 0 ) ? mul / n : 0.0f;
-		for( unsigned int k = 0; k < K; k += 4 )
+		for( unsigned int k = 0; k < K; k++ )
 		{
 			const float imag = (float)k * mulDivN;
-			const complex pp{ 0, imag };
-			const complex result = std::pow( XM_E, imag );
-			omega_vec[ k ][ n ] = result;
+			const std::complex<float> pp{ 0, imag };
+			const std::complex<float> result = std::pow( XM_E, pp );
+			omega_vec[ k ][ n ] = complex{ result.real(), result.imag() };
 		}
 	}
 }
@@ -123,7 +124,7 @@ static void fft_init_simd()
 	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
 	{
 		const float mulDivN = ( n != 0 ) ? mul / n : 0.0f;
-		for( unsigned int k = 0; k < K; k += 4 )
+		for( unsigned int k = 0; k < K; k++ )
 		{
 			const float imag = (float)k * mulDivN;
 			const __m128 result = computeOmegaVec( imag );
@@ -132,17 +133,36 @@ static void fft_init_simd()
 	}
 }
 
+static void fft_init_x2()
+{
+	constexpr float mul = (float)( -2 * M_PI );
+
+	const __m128i kVecIncrement = _mm_set1_epi32( 2 );
+	const __m128i kVecInitial = _mm_setr_epi32( 0, 1, 2, 3 );
+	static_assert( 0 == ( K % 2 ) );
+	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
+	{
+		const float mulDivN_Scalar = ( n != 0 ) ? mul / n : 0.0f;
+		const __m128 mulDivN = _mm_set1_ps( mulDivN_Scalar );
+		__m128i kVec = kVecInitial;
+		for( unsigned int k = 0; k < K; k += 2, kVec = _mm_add_epi32( kVec, kVecIncrement ) )
+		{
+			const __m128 imag = _mm_mul_ps( _mm_cvtepi32_ps( kVec ), mulDivN );
+			const __m128 result = computeOmegaVec_x2( imag );
+
+			storeComplex( omega_vec[ k ][ n ], result );
+			storeComplex( omega_vec[ k + 1 ][ n ], getHigh( result ) );
+		}
+	}
+}
+
 static void fft_init_x4()
 {
-	// constexpr complex I{ 0, 1 };
-	// constexpr complex E{ (float)M_E, 0 };
-	constexpr float XM_E = (float)M_E;
 	constexpr float mul = (float)( -2 * M_PI );
-	// #pragma omp parallel for
+
 	const __m128i kVecIncrement = _mm_set1_epi32( 4 );
 	const __m128i kVecInitial = _mm_setr_epi32( 0, 1, 2, 3 );
 	static_assert( 0 == ( K % 4 ) );
-
 	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
 	{
 		const float mulDivN_Scalar = ( n != 0 ) ? mul / n : 0.0f;
@@ -164,8 +184,9 @@ static void fft_init_x4()
 void fft_init()
 {
 	// fft_init_std();
-	fft_init_simd();
-	// fft_init_x4();
+	// fft_init_simd();
+	fft_init_x4();
+	// fft_init_x2();
 	initialized = true;
 }
 

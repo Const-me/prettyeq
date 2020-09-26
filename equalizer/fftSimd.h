@@ -43,6 +43,9 @@ __forceinline XMVECTOR2 getHigh( XMVECTOR v )
 // [ cos( val ), sin( val ) ]
 XMVECTOR computeOmegaVec( const float valScalar );
 
+// Same as above, for 2 different angles at once
+XMVECTOR computeOmegaVec_x2( const XMVECTOR2 angles );
+
 // Same as above, for 4 different angles at once
 std::pair<XMVECTOR, XMVECTOR> computeOmegaVec_x4( const XMVECTOR angles );
 
