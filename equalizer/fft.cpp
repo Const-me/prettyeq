@@ -12,9 +12,10 @@
 #include <xmmintrin.h>
 #include <immintrin.h>
 #include "fftSimd.h"
+#include "complex.h"
 
 static bool initialized = false;
-static std::complex<float> omega_vec[ K ][ MAX_SAMPLES ];
+static complex omega_vec[ K ][ MAX_SAMPLES ];
 
 static inline unsigned int reverse_bits( unsigned int n, unsigned int num_bits )
 {

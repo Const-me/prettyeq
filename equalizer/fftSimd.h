@@ -62,8 +62,6 @@ __forceinline XMVECTOR multiplyComplex( XMVECTOR2 x, XMVECTOR2 y )
 	return _mm_add_ps( prod, flipHighLow( prod ) );
 }
 
-using complex = std::complex<float>;
-
 __forceinline void fftMainLoop( const complex& om, complex& acc1, complex& acc2 )
 {
 	const XMVECTOR2 omega = loadFloat2( &om );
