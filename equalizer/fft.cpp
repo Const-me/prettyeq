@@ -164,8 +164,8 @@ static void fft_init_x4()
 void fft_init()
 {
 	// fft_init_std();
-	// fft_init_simd();
-	fft_init_x4();
+	fft_init_simd();
+	// fft_init_x4();
 	initialized = true;
 }
 
