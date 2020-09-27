@@ -50,7 +50,7 @@ XMVECTOR computeOmegaVec( const float valScalar );
 XMVECTOR computeOmegaVec_x2( const XMVECTOR2 angles );
 
 // Same as above, for 4 different angles at once
-std::pair<XMVECTOR, XMVECTOR> computeOmegaVec_x4( const XMVECTOR angles );
+void __vectorcall computeOmegaVec_x4( const XMVECTOR angles, float* const destPointer );
 
 // ==== Vectorizing fft_run ====
 

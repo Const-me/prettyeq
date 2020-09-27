@@ -181,7 +181,7 @@ XMVECTOR computeOmegaVec_x2( const XMVECTOR2 angles )
 	return v;
 }
 
-std::pair<XMVECTOR, XMVECTOR> computeOmegaVec_x4( const XMVECTOR angles )
+void __vectorcall computeOmegaVec_x4( const XMVECTOR angles, float* const destPointer )
 {
 	// [ 1 / ( 2 * pi ), 2 * pi, pi / 2, pi ]
 	const __m128 piConstants = s_piConstants;
@@ -252,5 +252,6 @@ std::pair<XMVECTOR, XMVECTOR> computeOmegaVec_x4( const XMVECTOR angles )
 	low = _mm_mul_ps( low, finalMultiplierLow );
 	high = _mm_mul_ps( high, finalMultiplierHigh );
 
-	return std::make_pair( low, high );
+	_mm_storeu_ps( destPointer, low );
+	_mm_storeu_ps( destPointer + 4, high );
 }

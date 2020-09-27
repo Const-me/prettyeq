@@ -120,11 +120,8 @@ static void fft_init_x4()
 		for( unsigned int k = 0; k < K; k += 4, kVec = _mm_add_epi32( kVec, kVecIncrement ) )
 		{
 			const __m128 imag = _mm_mul_ps( _mm_cvtepi32_ps( kVec ), mulDivN );
-			const std::pair<__m128, __m128> result = computeOmegaVec_x4( imag );
-
-			float* dest = (float*)( &omega_vec[ n ][ k ] );
-			_mm_storeu_ps( dest, result.first );
-			_mm_storeu_ps( dest + 4, result.second );
+			float* const dest = (float*)( &omega_vec[ n ][ k ] );
+			computeOmegaVec_x4( imag, dest );
 		}
 	}
 }
