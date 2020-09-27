@@ -36,7 +36,7 @@ static uint32_t reverseBitsImpl( uint32_t x )
 
 	if constexpr( n == 16 )
 	{
-		// When flipping exactly 16 bit, we only need to swap 2 bytes, no extra shifts needed then.
+		// When flipping exactly 16 bits, we only need to swap 2 bytes, no extra shifts needed then.
 		return bs16( x );
 	}
 
