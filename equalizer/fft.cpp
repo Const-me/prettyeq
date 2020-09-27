@@ -8,7 +8,10 @@
 #include "reverseBits.h"
 
 static bool initialized = false;
-static complex omega_vec[ K ][ MAX_SAMPLES ];
+// The original code had this array transposed, i.e. [ K ][ MAX_SAMPLES ]
+// Despite the inner loops of both fft_init and fft_run has a loop over K.
+// Transposing to the correct layout doubled the performance right away.
+static complex omega_vec[ MAX_SAMPLES ][ K ];
 
 // Old implementation no longer in use, see reverseBits.h and .cpp
 static inline unsigned int reverse_bits( unsigned int n, unsigned int num_bits )
@@ -61,7 +64,7 @@ static void fft_init_std()
 			const float imag = (float)k * mulDivN;
 			const std::complex<float> pp{ 0, imag };
 			const std::complex<float> result = std::pow( XM_E, pp );
-			omega_vec[ k ][ n ] = complex{ result.real(), result.imag() };
+			omega_vec[ n ][ k ] = complex{ result.real(), result.imag() };
 		}
 	}
 }
@@ -76,7 +79,7 @@ static void fft_init_simd()
 		{
 			const float imag = (float)k * mulDivN;
 			const __m128 result = computeOmegaVec( imag );
-			storeComplex( omega_vec[ k ][ n ], result );
+			storeComplex( omega_vec[ n ][ k ], result );
 		}
 	}
 }
@@ -97,9 +100,7 @@ static void fft_init_x2()
 		{
 			const __m128 imag = _mm_mul_ps( _mm_cvtepi32_ps( kVec ), mulDivN );
 			const __m128 result = computeOmegaVec_x2( imag );
-
-			storeComplex( omega_vec[ k ][ n ], result );
-			storeComplex( omega_vec[ k + 1 ][ n ], getHigh( result ) );
+			_mm_storeu_ps( (float*)( &omega_vec[ n ][ k ] ), result );
 		}
 	}
 }
@@ -121,10 +122,9 @@ static void fft_init_x4()
 			const __m128 imag = _mm_mul_ps( _mm_cvtepi32_ps( kVec ), mulDivN );
 			const std::pair<__m128, __m128> result = computeOmegaVec_x4( imag );
 
-			storeComplex( omega_vec[ k ][ n ], result.first );
-			storeComplex( omega_vec[ k + 1 ][ n ], getHigh( result.first ) );
-			storeComplex( omega_vec[ k + 2 ][ n ], result.second );
-			storeComplex( omega_vec[ k + 3 ][ n ], getHigh( result.second ) );
+			float* dest = (float*)( &omega_vec[ n ][ k ] );
+			_mm_storeu_ps( dest, result.first );
+			_mm_storeu_ps( dest + 4, result.second );
 		}
 	}
 }
@@ -214,7 +214,7 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 					const complex prod = omega * a1;
 					output_data[ k + j ] = a0 + prod;
 					output_data[ k + j + wingspan ] = a0 - prod; */
-					fftMainLoop( omega_vec[ k ][ n ], output_data[ k + j ], output_data[ k + j + wingspan ] );
+					fftMainLoop( omega_vec[ n ][ k ], output_data[ k + j ], output_data[ k + j + wingspan ] );
 				}
 			}
 			wingspan *= 2;
