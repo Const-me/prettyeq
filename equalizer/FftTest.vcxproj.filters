@@ -11,5 +11,6 @@
     <ClInclude Include="arena.h" />
     <ClInclude Include="fft.h" />
     <ClInclude Include="macro.h" />
+    <ClInclude Include="Stopwatch.hpp" />
   </ItemGroup>
 </Project>

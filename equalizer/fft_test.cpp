@@ -1,10 +1,9 @@
 #include "stdafx.h"
 #include "fft.h"
-
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <time.h>
+#include "Stopwatch.hpp"
 
 static const float single_channel_5000HZ_data[] = {
 	-0.120544, 0.222534, 0.457336, 0.469727, 0.253632, -0.085846, -0.383575,
@@ -125,26 +124,11 @@ static inline bool float_approx_equal( float f1, float f2 )
 	return fabsf( f1 - f2 ) > 0.00001 ? false : true;
 }
 
-#include <chrono>
-class Stopwatch
-{
-	using clock = std::chrono::high_resolution_clock;
-	clock::time_point begin = clock::now();
-public:
-	double getMicroseconds() const
-	{
-		using namespace std::chrono;
-		using us = duration<double, std::micro>;
-		const us elapsed = duration_cast<us>( clock::now() - begin );
-		return elapsed.count();
-	}
-};
-
 void test_init()
 {
 	Stopwatch sw;
 	fft_init();
-	printf( "[FFT Init %d samples] time: %f\n", MAX_SAMPLES, sw.getMicroseconds() );
+	printf( "[FFT Init %d samples] time: %f ms\n", MAX_SAMPLES, sw.elapsedMilliseconds() );
 }
 
 void test_single_channel()
@@ -154,7 +138,7 @@ void test_single_channel()
 
 	Stopwatch sw;
 	fft_run( single_channel_5000HZ_data, output, N, 1 );
-	const double us = sw.getMicroseconds();
+	const double us = sw.elapsedMicroseconds();
 
 	for( int i = 0; i < sizeof( cases ) / sizeof( cases[ 0 ] ); i++ ) 
 	{
@@ -165,7 +149,7 @@ void test_single_channel()
 			continue;
 		printf( "Test failed\n" );
 	}
-	printf( "[FFT Run %d samples] time: %f\n", N, us );
+	printf( "[FFT Run %d samples] time: %f us\n", N, us );
 }
 
 void test_dual_channel_micro() 
@@ -175,7 +159,7 @@ void test_dual_channel_micro()
 
 	Stopwatch sw;
 	fft_run( dual_channel_micro, output, N, 2 );
-	printf( "[FFT Run %d samples] time: %lf\n", N, sw.getMicroseconds() );
+	printf( "[FFT Run %d samples] time: %lf us\n", N, sw.elapsedMicroseconds() );
 }
 
 int main( int argc, const char **argv )

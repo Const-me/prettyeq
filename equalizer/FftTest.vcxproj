@@ -155,6 +155,7 @@
     <ClInclude Include="fft.h" />
     <ClInclude Include="macro.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="Stopwatch.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="arena.cpp" />
