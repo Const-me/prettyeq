@@ -121,8 +121,7 @@ TestCases cases[] = {
 
 static inline bool float_approx_equal( float f1, float f2 ) 
 {
-	// return fabsf( f1 - f2 ) > 0.00001 ? false : true;
-	return fabsf( f1 - f2 ) > 0.0001 ? false : true;
+	return fabsf( f1 - f2 ) > 0.00001 ? false : true;
 }
 
 void test_init()
