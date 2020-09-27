@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include "complex.h"
@@ -27,8 +28,10 @@ inline float FFT_PSD( const complex& c )
 }
 
 void fft_init();
+
+// The output buffer size must be at N rounded up to the next power of 2.
 void fft_run(
 	const float *input_data,
 	complex *output_data,
-	unsigned int N,
-	unsigned int channels );
+	uint32_t N,
+	uint32_t channels );

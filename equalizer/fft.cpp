@@ -1,20 +1,11 @@
 #include "stdafx.h"
-#include <assert.h>
-#include <limits.h>
-#include <math.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "macro.h"
-#include "fft.h"
 #include <xmmintrin.h>
 #include <immintrin.h>
-#include "fftSimd.h"
-#include "complex.h"
-#include "reverseBits.h"
 #include <complex>
+#include "macro.h"
+#include "fft.h"
+#include "fftSimd.h"
+#include "reverseBits.h"
 
 static bool initialized = false;
 static complex omega_vec[ K ][ MAX_SAMPLES ];
@@ -159,7 +150,7 @@ __forceinline void writeZeros( complex* pointer, uint32_t count )
 		storeFloat2( pointer, zero );
 }
 
-void fft_run( const float *input_data, complex *output_data, unsigned int N, unsigned int channels )
+void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_t channels )
 {
 	assert( initialized );
 
