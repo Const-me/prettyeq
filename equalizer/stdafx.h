@@ -6,6 +6,7 @@
 #else
 #include <sys/mman.h>
 #include <unistd.h>
+#define __forceinline inline __attribute__((always_inline))
 #endif
 
 #include <stdio.h>

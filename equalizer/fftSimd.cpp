@@ -1,7 +1,25 @@
 #pragma once
 #include "stdafx.h"
 #include <smmintrin.h>	// SSE 4.1
+#if 1
 #include <immintrin.h>	// FMA
+#else
+// Workarounds if you don't want to require FMA3 instruction set:
+// https://en.wikipedia.org/wiki/FMA_instruction_set#CPUs_with_FMA3
+
+__forceinline __m128 _mm_fmadd_ps( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_add_ps( _mm_mul_ps( a, b ), c );
+}
+__forceinline __m128 _mm_fnmadd_ps( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_sub_ps( c, _mm_mul_ps( a, b ) );
+}
+__forceinline __m128 _mm_fnmadd_ss( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_sub_ss( c, _mm_mul_ss( a, b ) );
+}
+#endif
 #include "fftSimd.h"
 
 template<int destLane, int sourceLane, int zeroLanes>
@@ -261,7 +279,7 @@ void __vectorcall computeOmegaVec_x4( const XMVECTOR angles, float* const destPo
 	_mm_storeu_ps( destPointer + 4, high );
 }
 
-// #ifdef __AVX2__
+#ifdef __AVX2__
 
 namespace Avx
 {
@@ -398,4 +416,4 @@ void __vectorcall computeOmegaVec_x8( const __m256 angles, float* const destPoin
 	assert( 0 == cmp );
 #endif
 }
-// #endif
+#endif
