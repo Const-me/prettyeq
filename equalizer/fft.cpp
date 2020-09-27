@@ -19,6 +19,7 @@
 static bool initialized = false;
 static complex omega_vec[ K ][ MAX_SAMPLES ];
 
+// Old implementation no longer in use, see reverseBits.h and .cpp
 static inline unsigned int reverse_bits( unsigned int n, unsigned int num_bits )
 {
 	int i, j;
@@ -50,17 +51,6 @@ static inline unsigned int get_msb( unsigned int v )
 	return 31 - __builtin_clz( v );
 #endif
 }
-
-/* inline complex computeOmega( unsigned int k, unsigned int n )
-{
-	constexpr float XM_E = (float)M_E;
-	constexpr float mul = (float)( -2 * M_PI );
-	const float imag = mul * (float)k / (float)n;
-
-	float s, c;
-	XMScalarSinCos( &s, &c, imag );
-	return complex{ c, s };
-} */
 
 __forceinline void storeComplex( complex& dest, __m128 val )
 {
@@ -157,6 +147,18 @@ void fft_init()
 	initialized = true;
 }
 
+// Fill continuous region of complex numbers with zeros.
+__forceinline void writeZeros( complex* pointer, uint32_t count )
+{
+	static_assert( sizeof( complex ) == 8 );
+	complex* const pointerEndAligned = pointer + ( count & ~1u );
+	const __m128 zero = _mm_setzero_ps();
+	for( ; pointer < pointerEndAligned; pointer += 2 )
+		_mm_storeu_ps( (float*)pointer, zero );
+	if( 0 != ( count % 2 ) )
+		storeFloat2( pointer, zero );
+}
+
 void fft_run( const float *input_data, complex *output_data, unsigned int N, unsigned int channels )
 {
 	assert( initialized );
@@ -177,17 +179,9 @@ void fft_run( const float *input_data, complex *output_data, unsigned int N, uns
 			unsigned int new_N = 1 << msb;
 #if 0
 			for( unsigned int i = N; i < new_N; i++ )
-			 	output_data[ i ] = 0.0f;
+				output_data[ i ] = 0.0f;
 #else
-			static_assert( sizeof( complex ) == 8 );
-			complex* pointer = &output_data[ N ];
-			const uint32_t count = new_N - N;
-			complex* const pointerEndAligned = pointer + ( count & ~1u );
-			const __m128 zero = _mm_setzero_ps();
-			for( ; pointer < pointerEndAligned; pointer += 2 )
-				_mm_storeu_ps( (float*)pointer, zero );
-			if( 0 != ( count % 2 ) )
-				storeFloat2( pointer, zero );
+			writeZeros( &output_data[ N ], new_N - N );
 #endif
 			N = new_N;
 		}
