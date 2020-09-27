@@ -129,7 +129,7 @@ void test_init()
 {
 	Stopwatch sw;
 	fft_init();
-	printf( "[FFT Init %d samples] time: %f ms\n", MAX_SAMPLES, sw.elapsedMilliseconds() );
+	printf( "[FFT Init %d samples] time: %lf ms\n", MAX_SAMPLES, sw.elapsedMilliseconds() );
 }
 
 void test_single_channel()
@@ -150,7 +150,7 @@ void test_single_channel()
 			continue;
 		printf( "Test failed\n" );
 	}
-	printf( "[FFT Run %d samples] time: %f us\n", N, us );
+	printf( "[FFT Run %d samples] time: %lf us\n", N, us );
 }
 
 void test_dual_channel_micro() 
@@ -160,7 +160,7 @@ void test_dual_channel_micro()
 
 	Stopwatch sw;
 	fft_run( dual_channel_micro, output, N, 2 );
-	printf( "[FFT Run %d samples] time: %lf\n", N, sw.elapsedMicroseconds() );
+	printf( "[FFT Run %d samples] time: %lf us\n", N, sw.elapsedMicroseconds() );
 }
 
 int main( int argc, const char **argv )
