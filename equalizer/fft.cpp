@@ -186,7 +186,7 @@ void fft_run( const float *input_data, complex *output_data, unsigned int N, uns
 			const __m128 zero = _mm_setzero_ps();
 			for( ; pointer < pointerEndAligned; pointer += 2 )
 				_mm_storeu_ps( (float*)pointer, zero );
-			if( pointer < pointer + count )
+			if( 0 != ( count % 2 ) )
 				storeFloat2( pointer, zero );
 #endif
 			N = new_N;
