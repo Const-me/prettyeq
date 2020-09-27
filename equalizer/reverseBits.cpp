@@ -3,12 +3,12 @@
 
 // Compatibility macros to emit `bswap` instructions
 #ifdef _MSC_VER
-inline uint32_t bs16( uint32_t x ) { return _byteswap_ushort( (uint16_t)x ); }
-inline uint32_t bs32( uint32_t x ) { return _byteswap_ulong( x ); }
+static inline uint32_t bs16( uint32_t x ) { return _byteswap_ushort( (uint16_t)x ); }
+static inline uint32_t bs32( uint32_t x ) { return _byteswap_ulong( x ); }
 #else
 // Assuming gcc or clang; intel has yet another name, _bswap().
-inline uint32_t bs16( uint32_t x ) { return __builtin_bswap16( (uint16_t)x ); }
-inline uint32_t bs32( uint32_t x ) { return __builtin_bswap32( x ); }
+static inline uint32_t bs16( uint32_t x ) { return __builtin_bswap16( (uint16_t)x ); }
+static inline uint32_t bs32( uint32_t x ) { return __builtin_bswap32( x ); }
 #endif
 
 // The template function that reverses a fixed count of lowest bits in an integer
