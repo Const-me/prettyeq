@@ -89,9 +89,13 @@ __forceinline void fftMainLoop( const complex* om, complex* a1c, complex* a2c )
 	storeFloat2( a2c, getHigh( result ) );
 }
 
+// Shuffle mask for vrev64q_f32
+constexpr int shuffleMask_rev64q = _MM_SHUFFLE( 2, 3, 0, 1 );
+
+// Reverse elements in 64-bit doublewords (vector).
 __forceinline XMVECTOR vrev64q_f32( XMVECTOR x )
 {
-	return _mm_shuffle_ps( x, x, _MM_SHUFFLE( 2, 3, 0, 1 ) );
+	return _mm_shuffle_ps( x, x, shuffleMask_rev64q );
 }
 
 // Same as multiplyComplex, multiplies 2 numbers
@@ -109,16 +113,59 @@ __forceinline XMVECTOR multiplyComplex_x2( const XMVECTOR x, const XMVECTOR y )
 	return _mm_addsub_ps( prod1, prod2 );	// [ ac - bd, ad + bc ]
 }
 
-// a1 = a1 + om * a2; a2 = a1 - om * a2
+// Same as fftMainLoop, handles 2 complex numbers
 __forceinline void fftMainLoop_x2( const complex* om, complex* a1c, complex* a2c )
 {
-	// Same as above, handles 2 numbers at once
+	// Full-vector loads/stores are more efficient, especially so when they happen to be aligned.
+	// Dual-channel DDR delivers exactly 128 bits per transaction.
 	const XMVECTOR omega = _mm_loadu_ps( (const float*)om );
 	const XMVECTOR a1 = _mm_loadu_ps( (const float*)a1c );
 	const XMVECTOR a2 = _mm_loadu_ps( (const float*)a2c );
 
-	const XMVECTOR product = multiplyComplex_x2( omega, a1 );
+	const XMVECTOR product = multiplyComplex_x2( omega, a2 );
 
 	_mm_storeu_ps( (float*)a1c, _mm_add_ps( a1, product ) );
 	_mm_storeu_ps( (float*)a2c, _mm_sub_ps( a1, product ) );
 }
+
+#ifdef __AVX__
+#include <immintrin.h>
+
+// Same as multiplyComplex, multiplies 4 numbers
+__forceinline __m256 multiplyComplex_x4( const __m256 x, const __m256 y )
+{
+	// If the inputs are [ a, b ] and [ c, d ] the formula is [ ac - bd, ad + bc ]
+
+	const __m256 x1 = _mm256_moveldup_ps( x );	// [ a, a ]
+	const __m256 x2 = _mm256_movehdup_ps( x );	// [ b, b ]
+	const __m256 yRev = _mm256_permute_ps( y, shuffleMask_rev64q );		// [ d, c ]
+
+	const __m256 prod1 = _mm256_mul_ps( x1, y ); // [ ac, ad ]
+	const __m256 prod2 = _mm256_mul_ps( x2, yRev ); // [ bd, bc ]
+
+	return _mm256_addsub_ps( prod1, prod2 );	// [ ac - bd, ad + bc ]
+}
+
+// Same as fftMainLoop, handles 4 complex numbers
+__forceinline void fftMainLoop_x4( const complex* om, complex* a1c, complex* a2c )
+{
+	// Full-vector loads/stores are more efficient, especially so when they happen to be aligned.
+	// Dual-channel DDR delivers exactly 128 bits per transaction.
+	const __m256 omega = _mm256_loadu_ps( (const float*)om );
+	const __m256 a1 = _mm256_loadu_ps( (const float*)a1c );
+	const __m256 a2 = _mm256_loadu_ps( (const float*)a2c );
+
+	const __m256 product = multiplyComplex_x4( omega, a2 );
+
+	_mm256_storeu_ps( (float*)a1c, _mm256_add_ps( a1, product ) );
+	_mm256_storeu_ps( (float*)a2c, _mm256_sub_ps( a1, product ) );
+}
+#else
+__forceinline void fftMainLoop_x4( const complex* om, complex* a1c, complex* a2c )
+{
+	// When AVX is disabled in project settings, call fftMainLoop_x2 twice for the same effect.
+	// The SSE version is only ~15% slower, BTW.
+	fftMainLoop_x2( om, a1c, a2c );
+	fftMainLoop_x2( om + 2, a1c + 2, a2c + 2 );
+}
+#endif

@@ -165,6 +165,64 @@ static __forceinline void fft_run_main( uint32_t wingspan, uint32_t N, complex *
 	}
 }
 
+static __forceinline void fft_run_main_1( uint32_t N, complex *output_data )
+{
+	constexpr uint32_t wingspan = 1;
+	constexpr uint32_t n = wingspan * 2;
+	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
+	for( uint32_t j = 0; j < N; j += wingspan * 2 )
+	{
+		complex* out1 = &output_data[ j ];
+		complex* out2 = &output_data[ j + wingspan ];
+		fftMainLoop( omegaBegin, out1, out2 );
+	}
+}
+
+static __forceinline void fft_run_main_2( uint32_t N, complex *output_data )
+{
+	constexpr uint32_t wingspan = 2;
+	constexpr uint32_t n = wingspan * 2;
+	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
+	for( uint32_t j = 0; j < N; j += wingspan * 2 )
+	{
+		complex* out1 = &output_data[ j ];
+		complex* out2 = &output_data[ j + wingspan ];
+		fftMainLoop_x2( omegaBegin, out1, out2 );
+	}
+}
+
+static __forceinline void fft_run_main_4( uint32_t N, complex *output_data )
+{
+	constexpr uint32_t wingspan = 4;
+	constexpr uint32_t n = wingspan * 2;
+	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
+	for( uint32_t j = 0; j < N; j += wingspan * 2 )
+	{
+		complex* out1 = &output_data[ j ];
+		complex* out2 = &output_data[ j + wingspan ];
+		fftMainLoop_x4( omegaBegin, out1, out2 );
+	}
+}
+
+static __forceinline void fft_run_main_n( uint32_t wingspan, uint32_t N, complex *output_data )
+{
+	assert( wingspan >= 8 && 0 == ( wingspan % 4 ) );
+	const uint32_t n = wingspan * 2;
+	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
+	const complex* const omegaEnd = omegaBegin + wingspan;
+
+	for( uint32_t j = 0; j < N; j += wingspan * 2 )
+	{
+		complex* out1 = &output_data[ j ];
+		complex* out2 = &output_data[ j + wingspan ];
+		for( const complex* om = omegaBegin; om < omegaEnd; om += 8, out1 += 8, out2 += 8 )
+		{
+			fftMainLoop_x4( om, out1, out2 );
+			fftMainLoop_x4( om + 4, out1 + 4, out2 + 4 );
+		}
+	}
+}
+
 void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_t channels )
 {
 	assert( initialized );
@@ -207,10 +265,11 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 #endif
 			if( i < r )
 				std::swap( output_data[ i ], output_data[ r ] );
-		}
+	}
 	}
 
 	{
+#if 0
 		/* Simple radix-2 DIT FFT */
 		unsigned int wingspan = 1;
 		while( wingspan < N )
@@ -234,6 +293,21 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 			} */
 			fft_run_main( wingspan, N, output_data );
 			wingspan *= 2;
-		}
+}
+#else
+		// wingspan 1
+		if( 1 >= N ) return;
+		fft_run_main_1( N, output_data );
+		// wingspan 2
+		if( 2 >= N ) return;
+		fft_run_main_2( N, output_data );
+		// wingspan 4
+		if( 4 >= N ) return;
+		fft_run_main_4( N, output_data );
+
+		// For 8 and more we use actual inner loop; small loops are bad for branch predictor, the exit condition changes too often.
+		for( uint32_t wingspan = 8; wingspan < N; wingspan *= 2 )
+			fft_run_main_n( wingspan, N, output_data );
+#endif
 	}
 }
