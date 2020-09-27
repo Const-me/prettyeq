@@ -214,7 +214,7 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 					const complex prod = omega * a1;
 					output_data[ k + j ] = a0 + prod;
 					output_data[ k + j + wingspan ] = a0 - prod; */
-					fftMainLoop( omega_vec[ n ][ k ], output_data[ k + j ], output_data[ k + j + wingspan ] );
+					fftMainLoop( &omega_vec[ n ][ k ], &output_data[ k + j ], &output_data[ k + j + wingspan ] );
 				}
 			}
 			wingspan *= 2;

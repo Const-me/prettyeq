@@ -76,15 +76,15 @@ __forceinline XMVECTOR multiplyComplex( XMVECTOR2 x, XMVECTOR2 y )
 }
 
 // a1 = a1 + om * a2; a2 = a1 - om * a2
-__forceinline void fftMainLoop( const complex& om, complex& a1c, complex& a2c )
+__forceinline void fftMainLoop( const complex* om, complex* a1c, complex* a2c )
 {
-	const XMVECTOR2 omega = loadFloat2Dup( &om );
-	const XMVECTOR2 a1 = loadFloat2( &a2c );
-	const XMVECTOR a0dup = loadFloat2Dup( &a1c );
+	const XMVECTOR2 omega = loadFloat2Dup( om );
+	const XMVECTOR2 a1 = loadFloat2( a2c );
+	const XMVECTOR a0dup = loadFloat2Dup( a1c );
 
 	XMVECTOR product = multiplyComplex( omega, a1 );
 	product = _mm_xor_ps( product, _mm_setr_ps( 0, 0, -0.0f, -0.0f ) );
 	const XMVECTOR result = _mm_add_ps( a0dup, product );
-	storeFloat2( &a1c, result );
-	storeFloat2( &a2c, getHigh( result ) );
+	storeFloat2( a1c, result );
+	storeFloat2( a2c, getHigh( result ) );
 }
