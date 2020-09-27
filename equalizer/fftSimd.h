@@ -88,3 +88,37 @@ __forceinline void fftMainLoop( const complex* om, complex* a1c, complex* a2c )
 	storeFloat2( a1c, result );
 	storeFloat2( a2c, getHigh( result ) );
 }
+
+__forceinline XMVECTOR vrev64q_f32( XMVECTOR x )
+{
+	return _mm_shuffle_ps( x, x, _MM_SHUFFLE( 2, 3, 0, 1 ) );
+}
+
+// Same as multiplyComplex, multiplies 2 numbers
+__forceinline XMVECTOR multiplyComplex_x2( const XMVECTOR x, const XMVECTOR y )
+{
+	// If the inputs are [ a, b ] and [ c, d ] the formula is [ ac - bd, ad + bc ]
+
+	const XMVECTOR x1 = _mm_moveldup_ps( x );	// [ a, a ]
+	const XMVECTOR x2 = _mm_movehdup_ps( x );	// [ b, b ]
+	const XMVECTOR yRev = vrev64q_f32( y );		// [ d, c ]
+
+	const XMVECTOR prod1 = _mm_mul_ps( x1, y ); // [ ac, ad ]
+	const XMVECTOR prod2 = _mm_mul_ps( x2, yRev ); // [ bd, bc ]
+
+	return _mm_addsub_ps( prod1, prod2 );	// [ ac - bd, ad + bc ]
+}
+
+// a1 = a1 + om * a2; a2 = a1 - om * a2
+__forceinline void fftMainLoop_x2( const complex* om, complex* a1c, complex* a2c )
+{
+	// Same as above, handles 2 numbers at once
+	const XMVECTOR omega = _mm_loadu_ps( (const float*)om );
+	const XMVECTOR a1 = _mm_loadu_ps( (const float*)a1c );
+	const XMVECTOR a2 = _mm_loadu_ps( (const float*)a2c );
+
+	const XMVECTOR product = multiplyComplex_x2( omega, a1 );
+
+	_mm_storeu_ps( (float*)a1c, _mm_add_ps( a1, product ) );
+	_mm_storeu_ps( (float*)a2c, _mm_sub_ps( a1, product ) );
+}
