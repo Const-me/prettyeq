@@ -160,11 +160,11 @@ void fft_init()
 	initialized = true;
 }
 
-// Fill continuous region of complex numbers with zeros.
+// Fill continuous span of complex numbers with zeros.
 static __forceinline void writeZeros( complex* pointer, uint32_t count )
 {
 	static_assert( sizeof( complex ) == 8 );
-	complex* const pointerEndAligned = pointer + ( count & ~1u );
+	complex* const pointerEndAligned = pointer + ( count & ( ~1u ) );
 	const __m128 zero = _mm_setzero_ps();
 	for( ; pointer < pointerEndAligned; pointer += 2 )
 		_mm_storeu_ps( (float*)pointer, zero );
@@ -172,7 +172,7 @@ static __forceinline void writeZeros( complex* pointer, uint32_t count )
 		storeFloat2( pointer, zero );
 }
 
-static __forceinline void fft_run_main( uint32_t wingspan, uint32_t N, complex *output_data )
+/* static __forceinline void fft_run_main( uint32_t wingspan, uint32_t N, complex *output_data )
 {
 	const uint32_t n = wingspan * 2;
 	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
@@ -185,47 +185,35 @@ static __forceinline void fft_run_main( uint32_t wingspan, uint32_t N, complex *
 		for( const complex* om = omegaBegin; om < omegaEnd; om++, out1++, out2++ )
 			fftMainLoop( om, out1, out2 );
 	}
-}
+} */
 
-static __forceinline void fft_run_main_1( uint32_t N, complex *output_data )
+// Template version for small values of wingspan, unrolls the inner loop for better performance
+template<uint32_t wingspan>
+static __forceinline void fft_run_main_unroll( uint32_t N, complex *output_data )
 {
-	constexpr uint32_t wingspan = 1;
 	constexpr uint32_t n = wingspan * 2;
 	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
 	for( uint32_t j = 0; j < N; j += wingspan * 2 )
 	{
 		complex* out1 = &output_data[ j ];
 		complex* out2 = &output_data[ j + wingspan ];
-		fftMainLoop( omegaBegin, out1, out2 );
+		if constexpr( 1 == wingspan )
+			fftMainLoop( omegaBegin, out1, out2 );
+		else if constexpr( 2 == wingspan )
+			fftMainLoop_x2( omegaBegin, out1, out2 );
+		else if constexpr( 4 == wingspan )
+			fftMainLoop_x4( omegaBegin, out1, out2 );
+		else if constexpr( 8 == wingspan )
+		{
+			fftMainLoop_x4( omegaBegin, out1, out2 );
+			fftMainLoop_x4( omegaBegin + 4, out1 + 4, out2 + 4 );
+		}
+		else
+			assert( false );
 	}
 }
 
-static __forceinline void fft_run_main_2( uint32_t N, complex *output_data )
-{
-	constexpr uint32_t wingspan = 2;
-	constexpr uint32_t n = wingspan * 2;
-	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
-	for( uint32_t j = 0; j < N; j += wingspan * 2 )
-	{
-		complex* out1 = &output_data[ j ];
-		complex* out2 = &output_data[ j + wingspan ];
-		fftMainLoop_x2( omegaBegin, out1, out2 );
-	}
-}
-
-static __forceinline void fft_run_main_4( uint32_t N, complex *output_data )
-{
-	constexpr uint32_t wingspan = 4;
-	constexpr uint32_t n = wingspan * 2;
-	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
-	for( uint32_t j = 0; j < N; j += wingspan * 2 )
-	{
-		complex* out1 = &output_data[ j ];
-		complex* out2 = &output_data[ j + wingspan ];
-		fftMainLoop_x4( omegaBegin, out1, out2 );
-	}
-}
-
+// Non-template version when we actually want a loop. The inner loop body handles 8 complex numbers per iteration.
 static __forceinline void fft_run_main_n( uint32_t wingspan, uint32_t N, complex *output_data )
 {
 	assert( wingspan >= 8 && 0 == ( wingspan % 4 ) );
@@ -287,7 +275,7 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 #endif
 			if( i < r )
 				std::swap( output_data[ i ], output_data[ r ] );
-	}
+		}
 	}
 
 	{
@@ -315,17 +303,17 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 			} */
 			fft_run_main( wingspan, N, output_data );
 			wingspan *= 2;
-}
+		}
 #else
 		// wingspan 1
 		if( 1 >= N ) return;
-		fft_run_main_1( N, output_data );
+		fft_run_main_unroll<1>( N, output_data );
 		// wingspan 2
 		if( 2 >= N ) return;
-		fft_run_main_2( N, output_data );
+		fft_run_main_unroll<2>( N, output_data );
 		// wingspan 4
 		if( 4 >= N ) return;
-		fft_run_main_4( N, output_data );
+		fft_run_main_unroll<4>( N, output_data );
 
 		// For 8 and more we use actual inner loop; small loops are bad for branch predictor, the exit condition changes too often.
 		for( uint32_t wingspan = 8; wingspan < N; wingspan *= 2 )

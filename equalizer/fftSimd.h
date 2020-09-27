@@ -1,6 +1,29 @@
 #pragma once
 #include <emmintrin.h>
 #include <pmmintrin.h>	// MOVDDUP and ADDSUBPS are from SSE3 set
+#if 1
+#include <immintrin.h>	// FMA
+#else
+// Workarounds if you don't want to require FMA3 instruction set:
+// https://en.wikipedia.org/wiki/FMA_instruction_set#CPUs_with_FMA3
+
+__forceinline __m128 _mm_fmadd_ps( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_add_ps( _mm_mul_ps( a, b ), c );
+}
+__forceinline __m128 _mm_fnmadd_ps( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_sub_ps( c, _mm_mul_ps( a, b ) );
+}
+__forceinline __m128 _mm_fnmadd_ss( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_sub_ss( c, _mm_mul_ss( a, b ) );
+}
+__forceinline __m128 _mm_fmaddsub_ps( __m128 a, __m128 b, __m128 c )
+{
+	return _mm_addsub_ps( _mm_mul_ps( a, b ), c );
+}
+#endif
 #include "complex.h"
 
 // ==== Miscellaneous utilities ====
@@ -107,15 +130,15 @@ __forceinline XMVECTOR vrev64q_f32( XMVECTOR x )
 __forceinline XMVECTOR multiplyComplex_x2( const XMVECTOR x, const XMVECTOR y )
 {
 	// If the inputs are [ a, b ] and [ c, d ] the formula is [ ac - bd, ad + bc ]
-
-	const XMVECTOR x1 = _mm_moveldup_ps( x );	// [ a, a ]
 	const XMVECTOR x2 = _mm_movehdup_ps( x );	// [ b, b ]
 	const XMVECTOR yRev = vrev64q_f32( y );		// [ d, c ]
 
-	const XMVECTOR prod1 = _mm_mul_ps( x1, y ); // [ ac, ad ]
+	// const XMVECTOR prod1 = _mm_mul_ps( x1, y ); // [ ac, ad ]
 	const XMVECTOR prod2 = _mm_mul_ps( x2, yRev ); // [ bd, bc ]
 
-	return _mm_addsub_ps( prod1, prod2 );	// [ ac - bd, ad + bc ]
+	const XMVECTOR x1 = _mm_moveldup_ps( x );	// [ a, a ]
+	// return _mm_addsub_ps( prod1, prod2 );	// [ ac - bd, ad + bc ]
+	return _mm_fmaddsub_ps( x1, y, prod2 );
 }
 
 // Same as fftMainLoop, handles 2 complex numbers
@@ -141,14 +164,15 @@ __forceinline __m256 multiplyComplex_x4( const __m256 x, const __m256 y )
 {
 	// If the inputs are [ a, b ] and [ c, d ] the formula is [ ac - bd, ad + bc ]
 
-	const __m256 x1 = _mm256_moveldup_ps( x );	// [ a, a ]
 	const __m256 x2 = _mm256_movehdup_ps( x );	// [ b, b ]
 	const __m256 yRev = _mm256_permute_ps( y, shuffleMask_rev64q );		// [ d, c ]
 
-	const __m256 prod1 = _mm256_mul_ps( x1, y ); // [ ac, ad ]
+	// const __m256 prod1 = _mm256_mul_ps( x1, y ); // [ ac, ad ]
 	const __m256 prod2 = _mm256_mul_ps( x2, yRev ); // [ bd, bc ]
 
-	return _mm256_addsub_ps( prod1, prod2 );	// [ ac - bd, ad + bc ]
+	// return _mm256_addsub_ps( prod1, prod2 );	// [ ac - bd, ad + bc ]
+	const __m256 x1 = _mm256_moveldup_ps( x );	// [ a, a ]
+	return _mm256_fmaddsub_ps( x1, y, prod2 );
 }
 
 // Same as fftMainLoop, handles 4 complex numbers
