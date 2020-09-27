@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "reverseBits.h"
 
+// Compatibility macros to emit `bswap` instructions
 #ifdef _MSC_VER
 inline uint32_t bs16( uint32_t x ) { return _byteswap_ushort( (uint16_t)x ); }
 inline uint32_t bs32( uint32_t x ) { return _byteswap_ulong( x ); }
@@ -10,6 +11,7 @@ inline uint32_t bs16( uint32_t x ) { return __builtin_bswap16( (uint16_t)x ); }
 inline uint32_t bs32( uint32_t x ) { return __builtin_bswap32( x ); }
 #endif
 
+// The template function that reverses a fixed count of lowest bits in an integer
 template<int n>
 static uint32_t reverseBitsImpl( uint32_t x )
 {
@@ -56,6 +58,7 @@ static const std::array<ReverseBits::pfn, 33> s_functions =
 	DF4( 20 ),
 	DF4( 24 ),
 	DF4( 28 ),
+#undef DF4
 	&reverseBitsImpl<32>
 };
 
