@@ -47,23 +47,10 @@ static uint32_t reverseBitsImpl( uint32_t x )
 	return x >> lastShift;
 }
 
-static const std::array<ReverseBits::pfn, 33> s_functions =
+const std::array<ReverseBits::pfn, 33> ReverseBits::s_implementations =
 {
 #define DF4( i ) &reverseBitsImpl<i>, &reverseBitsImpl<i+1>, &reverseBitsImpl<i+2>, &reverseBitsImpl<i+3>
-	DF4( 0 ),
-	DF4( 4 ),
-	DF4( 8 ),
-	DF4( 12 ),
-	DF4( 16 ),
-	DF4( 20 ),
-	DF4( 24 ),
-	DF4( 28 ),
+	DF4( 0 ), DF4( 4 ), DF4( 8 ), DF4( 12 ), DF4( 16 ), DF4( 20 ), DF4( 24 ), DF4( 28 ),
 #undef DF4
 	&reverseBitsImpl<32>
 };
-
-ReverseBits::ReverseBits( uint32_t count ) :
-	m_pfn( s_functions[ count ] )
-{
-	assert( count <= 32 );
-}
