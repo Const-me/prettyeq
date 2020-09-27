@@ -125,13 +125,38 @@ static void fft_init_x4()
 		}
 	}
 }
+#ifdef __AVX2__
+static void fft_init_x8()
+{
+	constexpr float mul = (float)( -2 * M_PI );
+	const __m256i kVecIncrement = _mm256_set1_epi32( 8 );
+	const __m256i kVecInitial = _mm256_setr_epi32( 0, 1, 2, 3, 4, 5, 6, 7 );
+	static_assert( 0 == ( K % 8 ) );
+	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
+	{
+		const float mulDivN_Scalar = ( n != 0 ) ? mul / n : 0.0f;
+		const __m256 mulDivN = _mm256_set1_ps( mulDivN_Scalar );
+		__m256i kVec = kVecInitial;
+		for( unsigned int k = 0; k < K; k += 8, kVec = _mm256_add_epi32( kVec, kVecIncrement ) )
+		{
+			const __m256 imag = _mm256_mul_ps( _mm256_cvtepi32_ps( kVec ), mulDivN );
+			float* const dest = (float*)( &omega_vec[ n ][ k ] );
+			computeOmegaVec_x8( imag, dest );
+		}
+	}
+}
+#endif
 
 void fft_init()
 {
+#ifdef __AVX2__
+	fft_init_x8();
+#else
 	// fft_init_std();
 	// fft_init_simd();
 	fft_init_x4();
 	// fft_init_x2();
+#endif
 	initialized = true;
 }
 

@@ -112,15 +112,19 @@ XMVECTOR computeOmegaVec( const float valScalar )
 	return _mm_mul_ps( v, finalMultiplier );
 }
 
-template<int i>
-__forceinline __m128 broadcastLane( __m128 x )
+namespace Sse
 {
-	static_assert( i >= 0 && i < 4 );
-	return _mm_shuffle_ps( x, x, _MM_SHUFFLE( i, i, i, i ) );
+	template<int i>
+	__forceinline __m128 broadcastLane( __m128 x )
+	{
+		static_assert( i >= 0 && i < 4 );
+		return _mm_shuffle_ps( x, x, _MM_SHUFFLE( i, i, i, i ) );
+	}
 }
 
 XMVECTOR computeOmegaVec_x2( const XMVECTOR2 angles )
 {
+	using namespace Sse;
 	__m128 val = angles;
 
 	// [ 1 / ( 2 * pi ), 2 * pi, pi / 2, pi ]
@@ -185,6 +189,7 @@ void __vectorcall computeOmegaVec_x4( const XMVECTOR angles, float* const destPo
 {
 	// [ 1 / ( 2 * pi ), 2 * pi, pi / 2, pi ]
 	const __m128 piConstants = s_piConstants;
+	using namespace Sse;
 
 	// Map Value to y in [-pi,pi], x = 2*pi*quotient + remainder.
 	__m128 val = angles;
@@ -255,3 +260,142 @@ void __vectorcall computeOmegaVec_x4( const XMVECTOR angles, float* const destPo
 	_mm_storeu_ps( destPointer, low );
 	_mm_storeu_ps( destPointer + 4, high );
 }
+
+// #ifdef __AVX2__
+
+namespace Avx
+{
+	template<int i>
+	__forceinline __m256 broadcastLane( __m128 x )
+	{
+		x = _mm_permute_ps( x, _MM_SHUFFLE( i, i, i, i ) );
+		__m256 res = _mm256_castps128_ps256( x );
+		return _mm256_insertf128_ps( res, x, 1 );
+	}
+
+	template<>
+	__forceinline __m256 broadcastLane<0>( __m128 x )
+	{
+		return _mm256_broadcastss_ps( x );
+	}
+	template<>
+	__forceinline __m256 broadcastLane<1>( __m128 x )
+	{
+		x = _mm_movehdup_ps( x );
+		return _mm256_broadcastss_ps( x );
+	}
+
+	__forceinline __m256 _mm256_cmpgt_ps( __m256 a, __m256 b )
+	{
+		return _mm256_cmp_ps( a, b, _CMP_GT_OS );	// Greater-than (ordered, signaling)
+	}
+
+	// [ a, b, c, d ] => [ a, b, a, b, a, b, a, b ], single instruction
+	__forceinline __m256 broadcastLow( __m128 x )
+	{
+		__m128d d = _mm_castps_pd( x );
+		__m256d res = _mm256_broadcastsd_pd( d );
+		return _mm256_castpd_ps( res );
+	}
+
+	// [ a, b, c, d ] => [ c, d, c, d, c, d, c, d ], single instruction
+	__forceinline __m256 broadcastHigh( __m128 x )
+	{
+		__m256d res = _mm256_castpd128_pd256( _mm_castps_pd( x ) );
+		res = _mm256_permute4x64_pd( res, _MM_SHUFFLE( 1, 1, 1, 1 ) );
+		return _mm256_castpd_ps( res );
+	}
+}
+
+void __vectorcall computeOmegaVec_x8( const __m256 angles, float* const destPointer )
+{
+	const __m128 piConstants = s_piConstants;
+	using namespace Avx;
+
+	__m256 val = angles;
+	const __m256 quotient = _mm256_round_ps( _mm256_mul_ps( val, broadcastLane<0>( piConstants ) ), _MM_FROUND_NINT );
+
+	__m256 y = _mm256_fnmadd_ps( quotient, broadcastLane<1>( piConstants ), val );
+
+	// [ sign bit, +1, -1, 0 ]
+	const __m128 miscConstants = s_miscConstants;
+
+	// Map y to [-pi/2,pi/2] with sin(y) = sin(Value).
+	const __m256 signBit = broadcastLane<0>( miscConstants );
+	const __m256 yAbs = _mm256_andnot_ps( signBit, y );
+	const __m256 pidiv2 = broadcastLane<2>( piConstants );
+	const __m256 absExceeds90Mask = _mm256_cmpgt_ps( yAbs, pidiv2 );
+
+	// We don't want to predict any branches here.
+	// Computing both sizes of the "if" and selecting the right one with _mm_blendv_ps.
+	// These extra computations is nothing compared to the cost of branch prediction.
+	const __m256 sign = _mm256_and_ps( signBit, y );
+	__m256 pi = broadcastLane<3>( piConstants );
+	pi = _mm256_or_ps( pi, sign );
+	const __m256 case1_y = _mm256_sub_ps( pi, y );
+	const __m256 case1_cosMul = broadcastLane<2>( miscConstants );	// -1 in all 4 lanes
+	const __m256 case2_cosMul = broadcastLane<1>( miscConstants );	// +1 in all 4 lanes
+	const __m256 cosMul = _mm256_blendv_ps( case2_cosMul, case1_cosMul, absExceeds90Mask );
+	y = _mm256_blendv_ps( y, case1_y, absExceeds90Mask );
+
+	// Prepare two vectors with final multipliers.
+	// These are 4 pairs of values, each being [ +/-1, y ]
+	const __m256 finalMultiplierLow = _mm256_unpacklo_ps( cosMul, y );
+	const __m256 finalMultiplierHigh = _mm256_unpackhi_ps( cosMul, y );
+
+	// Prepare two vectors with y^2, one with [ y0^2, y0^2, y1^2, y1^2 ], another one with [ y2^2, y2^2, y3^2, y3^2 ]
+	const __m256 y2_all = _mm256_mul_ps( y, y );
+	const __m256 y2low = _mm256_unpacklo_ps( y2_all, y2_all );
+	const __m256 y2high = _mm256_unpackhi_ps( y2_all, y2_all );
+
+	// Now use FMA to compute the result.
+	// Unlike the code in computeOmegaVec, we now have 2 independent streams of data, 
+	// Should help saturating the EUs despite 4-5 cycles of latency of every FMA instruction.
+	__m128 coeffs = s_sinCosCoeffs0;
+	const __m256 coeffs0_1 = broadcastLow( coeffs );
+	const __m256 coeffs0_2 = broadcastHigh( coeffs );
+	__m256 low = _mm256_fmadd_ps( y2low, coeffs0_1, coeffs0_2 );
+	__m256 high = _mm256_fmadd_ps( y2high, coeffs0_1, coeffs0_2 );
+
+	coeffs = s_sinCosCoeffs1;
+	__m256 tmp = broadcastLow( coeffs );
+	low = _mm256_fmadd_ps( y2low, low, tmp );
+	high = _mm256_fmadd_ps( y2high, high, tmp );
+
+	tmp = broadcastHigh( coeffs );
+	low = _mm256_fmadd_ps( y2low, low, tmp );
+	high = _mm256_fmadd_ps( y2high, high, tmp );
+
+	coeffs = s_sinCosCoeffs2;
+	tmp = broadcastLow( coeffs );
+	low = _mm256_fmadd_ps( y2low, low, tmp );
+	high = _mm256_fmadd_ps( y2high, high, tmp );
+
+	tmp = broadcastHigh( coeffs );
+	low = _mm256_fmadd_ps( y2low, low, tmp );
+	high = _mm256_fmadd_ps( y2high, high, tmp );
+
+	low = _mm256_mul_ps( low, finalMultiplierLow );
+	high = _mm256_mul_ps( high, finalMultiplierHigh );
+
+	// _mm256_unpacklo_ps is broken, it does that thing independently for 128-bit lanes.
+	// That is, takes [ q, w, e, r, t, y, u, i ] and [ a, s, d, f, g, h, j, k ], and returns [ q, a, w, s, t, g, y, h ]
+	// So far, all these vectors use that weird order, low contains complex numbers [ 0, 1, 4, 5 ] and high contains [ 2, 3, 6, 7 ]
+	// Need to permute them back to normal.
+	constexpr int perm1 = 0 | ( 2 << 4 );
+	const __m256 r1 = _mm256_permute2f128_ps( low, high, perm1 );
+	constexpr int perm2 = 1 | ( 3 << 4 );
+	const __m256 r2 = _mm256_permute2f128_ps( low, high, perm2 );
+
+	_mm256_storeu_ps( destPointer, r1 );
+	_mm256_storeu_ps( destPointer + 8, r2 );
+
+#if 0
+	alignas( 32 ) std::array<float, 16> sseBuffer;
+	computeOmegaVec_x4( _mm256_castps256_ps128( angles ), sseBuffer.data() );
+	computeOmegaVec_x4( _mm256_extractf128_ps( angles, 1 ), sseBuffer.data() + 8 );
+	const int cmp = memcmp( sseBuffer.data(), destPointer, sizeof( sseBuffer ) );
+	assert( 0 == cmp );
+#endif
+}
+// #endif

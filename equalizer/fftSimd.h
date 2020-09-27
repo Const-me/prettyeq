@@ -52,6 +52,11 @@ XMVECTOR computeOmegaVec_x2( const XMVECTOR2 angles );
 // Same as above, for 4 different angles at once
 void __vectorcall computeOmegaVec_x4( const XMVECTOR angles, float* const destPointer );
 
+#ifdef __AVX2__
+#include <immintrin.h>
+void __vectorcall computeOmegaVec_x8( const __m256 angles, float* const destPointer );
+#endif
+
 // ==== Vectorizing fft_run ====
 
 // Multiply 2 complex numbers, the result vector is duplicated, [ a, b, a, b ] where a = real, b = imaginary
