@@ -139,7 +139,7 @@ void fft_init()
 }
 
 // Fill continuous region of complex numbers with zeros.
-__forceinline void writeZeros( complex* pointer, uint32_t count )
+static __forceinline void writeZeros( complex* pointer, uint32_t count )
 {
 	static_assert( sizeof( complex ) == 8 );
 	complex* const pointerEndAligned = pointer + ( count & ~1u );
@@ -148,6 +148,21 @@ __forceinline void writeZeros( complex* pointer, uint32_t count )
 		_mm_storeu_ps( (float*)pointer, zero );
 	if( 0 != ( count % 2 ) )
 		storeFloat2( pointer, zero );
+}
+
+static __forceinline void fft_run_main( uint32_t wingspan, uint32_t N, complex *output_data )
+{
+	const uint32_t n = wingspan * 2;
+	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
+	const complex* const omegaEnd = omegaBegin + wingspan;
+
+	for( uint32_t j = 0; j < N; j += wingspan * 2 )
+	{
+		complex* out1 = &output_data[ j ];
+		complex* out2 = &output_data[ j + wingspan ];
+		for( const complex* om = omegaBegin; om < omegaEnd; om++, out1++, out2++ )
+			fftMainLoop( om, out1, out2 );
+	}
 }
 
 void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_t channels )
@@ -200,7 +215,7 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 		unsigned int wingspan = 1;
 		while( wingspan < N )
 		{
-			unsigned int n = wingspan * 2;
+			/* unsigned int n = wingspan * 2;
 			for( unsigned int j = 0; j < N; j += wingspan * 2 )
 			{
 				for( unsigned int k = 0; k < wingspan; k++ )
@@ -213,10 +228,11 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 					// output_data[ k + j + wingspan ] = a0 - omega * a1;
 					const complex prod = omega * a1;
 					output_data[ k + j ] = a0 + prod;
-					output_data[ k + j + wingspan ] = a0 - prod; */
+					output_data[ k + j + wingspan ] = a0 - prod; * /
 					fftMainLoop( &omega_vec[ n ][ k ], &output_data[ k + j ], &output_data[ k + j + wingspan ] );
 				}
-			}
+			} */
+			fft_run_main( wingspan, N, output_data );
 			wingspan *= 2;
 		}
 	}
