@@ -17,7 +17,7 @@
 // Much slower than vectorized version, but still pretty fast overall, well under 0.5ms on my PC.
 #define FFT_PRECISE_TABLE true
 
-// Use FMA3 instructions
+// Use FMA3 instructions. Only changes something when building without AVX.
 #define FFT_USE_FMA3 true
 
 #include "simdUtils.hpp"

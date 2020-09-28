@@ -39,7 +39,7 @@ __forceinline XMVECTOR2 getHigh( XMVECTOR v )
 }
 
 // ==== FMA ====
-#if FFT_USE_FMA3
+#if FFT_USE_FMA3 || defined (__AVX__)
 #include <immintrin.h>	// FMA
 #else
 // Workaround if you don't want to require FMA3 instruction set:
