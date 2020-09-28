@@ -69,12 +69,13 @@ static void fft_init_std()
 	}
 }
 
+constexpr float minus2pi = (float)( -2.0 * M_PI );
+
 static void fft_init_simd()
 {
-	constexpr float mul = (float)( -2 * M_PI );
 	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
 	{
-		const float mulDivN = ( n != 0 ) ? mul / n : 0.0f;
+		const float mulDivN = ( n != 0 ) ? minus2pi / n : 0.0f;
 		for( unsigned int k = 0; k < K; k++ )
 		{
 			const float imag = (float)k * mulDivN;
@@ -86,14 +87,12 @@ static void fft_init_simd()
 
 static void fft_init_x2()
 {
-	constexpr float mul = (float)( -2 * M_PI );
-
 	const __m128i kVecIncrement = _mm_set1_epi32( 2 );
 	const __m128i kVecInitial = _mm_setr_epi32( 0, 1, 2, 3 );
 	static_assert( 0 == ( K % 2 ) );
 	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
 	{
-		const float mulDivN_Scalar = ( n != 0 ) ? mul / n : 0.0f;
+		const float mulDivN_Scalar = ( n != 0 ) ? minus2pi / n : 0.0f;
 		const __m128 mulDivN = _mm_set1_ps( mulDivN_Scalar );
 		__m128i kVec = kVecInitial;
 		for( unsigned int k = 0; k < K; k += 2, kVec = _mm_add_epi32( kVec, kVecIncrement ) )
@@ -107,14 +106,12 @@ static void fft_init_x2()
 
 static void fft_init_x4()
 {
-	constexpr float mul = (float)( -2 * M_PI );
-
 	const __m128i kVecIncrement = _mm_set1_epi32( 4 );
 	const __m128i kVecInitial = _mm_setr_epi32( 0, 1, 2, 3 );
 	static_assert( 0 == ( K % 4 ) );
 	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
 	{
-		const float mulDivN_Scalar = ( n != 0 ) ? mul / n : 0.0f;
+		const float mulDivN_Scalar = ( n != 0 ) ? minus2pi / n : 0.0f;
 		const __m128 mulDivN = _mm_set1_ps( mulDivN_Scalar );
 		__m128i kVec = kVecInitial;
 		for( unsigned int k = 0; k < K; k += 4, kVec = _mm_add_epi32( kVec, kVecIncrement ) )
@@ -128,13 +125,12 @@ static void fft_init_x4()
 #ifdef __AVX2__
 static void fft_init_x8()
 {
-	constexpr float mul = (float)( -2 * M_PI );
 	const __m256i kVecIncrement = _mm256_set1_epi32( 8 );
 	const __m256i kVecInitial = _mm256_setr_epi32( 0, 1, 2, 3, 4, 5, 6, 7 );
 	static_assert( 0 == ( K % 8 ) );
 	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
 	{
-		const float mulDivN_Scalar = ( n != 0 ) ? mul / n : 0.0f;
+		const float mulDivN_Scalar = ( n != 0 ) ? minus2pi / n : 0.0f;
 		const __m256 mulDivN = _mm256_set1_ps( mulDivN_Scalar );
 		__m256i kVec = kVecInitial;
 		for( unsigned int k = 0; k < K; k += 8, kVec = _mm256_add_epi32( kVec, kVecIncrement ) )
