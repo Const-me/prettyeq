@@ -29,7 +29,7 @@ inline float FFT_PSD( const complex& c )
 
 void fft_init();
 
-// The output buffer size must be at N rounded up to the next power of 2.
+// The output buffer size must be N rounded up to the next power of 2
 void fft_run(
 	const float *input_data,
 	complex *output_data,

@@ -96,7 +96,7 @@ XMVECTOR computeOmegaVec( const float valScalar )
 	}
 	const __m128 y2 = _mm_moveldup_ps( _mm_mul_ss( y, y ) );
 
-	// And the main formula now only takes 10 instructions.
+	// And the main formula now only takes 9 instructions.
 	__m128 coeffs = s_sinCosCoeffs0;
 	__m128 v = _mm_fmadd_ps( y2, coeffs, upper( coeffs ) );
 
@@ -379,8 +379,9 @@ void __vectorcall computeOmegaVec_x8( const __m256 angles, float* const destPoin
 
 	// _mm256_unpacklo_ps is broken, it does that thing independently for 128-bit lanes.
 	// That is, takes [ q, w, e, r, t, y, u, i ] and [ a, s, d, f, g, h, j, k ], and returns [ q, a, w, s, t, g, y, h ]
+	// Same for _mm256_unpackhi_ps.
 	// So far, all these vectors use that weird order, low contains complex numbers [ 0, 1, 4, 5 ] and high contains [ 2, 3, 6, 7 ]
-	// Need to permute them back to normal.
+	// To use 256-bit store instructions, need to permute them back to normal.
 	constexpr int perm1 = 0 | ( 2 << 4 );
 	const __m256 r1 = _mm256_permute2f128_ps( low, high, perm1 );
 	constexpr int perm2 = 1 | ( 3 << 4 );

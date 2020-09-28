@@ -111,6 +111,7 @@ __forceinline void fftMainLoop( const complex* om, complex* a1c, complex* a2c )
 	const XMVECTOR a0dup = loadFloat2Dup( a1c );
 
 	XMVECTOR product = multiplyComplex( omega, a1 );
+	// Negate the upper copy, to compute both ( a1 + product ) and ( a1 - product ) in one shot
 	product = _mm_xor_ps( product, _mm_setr_ps( 0, 0, -0.0f, -0.0f ) );
 	const XMVECTOR result = _mm_add_ps( a0dup, product );
 	storeFloat2( a1c, result );
@@ -146,6 +147,7 @@ __forceinline void fftMainLoop_x2( const complex* om, complex* a1c, complex* a2c
 {
 	// Full-vector loads/stores are more efficient, especially so when they happen to be aligned.
 	// Dual-channel DDR delivers exactly 128 bits per transaction.
+	// Too bad VC++ 2017 optimizer is unaware, and fuses these loads into other instructions so the code does 2 loads from the same address :-(
 	const XMVECTOR omega = _mm_loadu_ps( (const float*)om );
 	const XMVECTOR a1 = _mm_loadu_ps( (const float*)a1c );
 	const XMVECTOR a2 = _mm_loadu_ps( (const float*)a2c );
@@ -178,8 +180,6 @@ __forceinline __m256 multiplyComplex_x4( const __m256 x, const __m256 y )
 // Same as fftMainLoop, handles 4 complex numbers
 __forceinline void fftMainLoop_x4( const complex* om, complex* a1c, complex* a2c )
 {
-	// Full-vector loads/stores are more efficient, especially so when they happen to be aligned.
-	// Dual-channel DDR delivers exactly 128 bits per transaction.
 	const __m256 omega = _mm256_loadu_ps( (const float*)om );
 	const __m256 a1 = _mm256_loadu_ps( (const float*)a1c );
 	const __m256 a2 = _mm256_loadu_ps( (const float*)a2c );

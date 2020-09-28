@@ -216,7 +216,7 @@ static __forceinline void fft_run_main_unroll( uint32_t N, complex *output_data 
 // Non-template version when we actually want a loop. The inner loop body handles 8 complex numbers per iteration.
 static __forceinline void fft_run_main_n( uint32_t wingspan, uint32_t N, complex *output_data )
 {
-	assert( wingspan >= 8 && 0 == ( wingspan % 4 ) );
+	assert( wingspan >= 8 && 0 == ( wingspan % 8 ) );
 	const uint32_t n = wingspan * 2;
 	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
 	const complex* const omegaEnd = omegaBegin + wingspan;
