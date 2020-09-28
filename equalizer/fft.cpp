@@ -142,7 +142,7 @@ template<>
 static __forceinline void fft_run_main_unroll<4>( uint32_t N, complex *output_data )
 {
 	constexpr uint32_t wingspan = 4;
-	constexpr uint32_t n = wingspan * 2;
+	constexpr uint32_t n = wingspan * 2;	// 8 = 2^3
 	// Loading these things into registers outside of the inner loop is what gives the performance win.
 	const float* omega_src = (const float*)&omega_vec_log[ 3 ][ 0 ];
 #ifdef __AVX__
@@ -169,7 +169,7 @@ template<>
 static __forceinline void fft_run_main_unroll<8>( uint32_t N, complex *output_data )
 {
 	constexpr uint32_t wingspan = 8;
-	constexpr uint32_t n = wingspan * 2;
+	constexpr uint32_t n = wingspan * 2;	// 16 = 2^4
 	const float* omega_src = (const float*)&omega_vec_log[ 4 ][ 0 ];
 #ifdef __AVX__
 	const __m256 omega0 = _mm256_load_ps( omega_src );
