@@ -2,7 +2,6 @@
 #include <stdint.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include "complex.h"
 #include <smmintrin.h>
 
 #define MAX_SAMPLES_LOG_2 12
@@ -21,6 +20,7 @@
 #define FFT_USE_FMA3 true
 
 #include "simdUtils.hpp"
+#include "complex.h"
 
 inline float FFT_PSD( const complex& c )
 {

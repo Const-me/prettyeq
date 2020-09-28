@@ -134,6 +134,12 @@ void fft_init()
 	fft_init_x4();
 #endif
 #endif
+
+	// fft_run_main_unroll<1> and fft_run_main_unroll<2> aren't using the table, they expect something specific there.
+	assert( omega_vec_log[ 1 ][ 0 ].closeEnough( 1, 0 ) );
+	assert( omega_vec_log[ 2 ][ 0 ].closeEnough( 1, 0 ) );
+	assert( omega_vec_log[ 2 ][ 1 ].closeEnough( 0, -1 ) );
+
 	initialized = true;
 }
 
@@ -246,6 +252,19 @@ static __forceinline void fft_run_main_n( uint32_t wingspan, uint32_t N, complex
 	}
 }
 
+namespace std
+{
+	// VC++ didn't do a great job making these move constructors. No big deal, specializing the template.
+	template<>
+	inline void swap<::complex>( ::complex& a, ::complex& b ) noexcept
+	{
+		const __m128 av = loadFloat2( &a );
+		const __m128 bv = loadFloat2( &b );
+		storeFloat2( &a, bv );
+		storeFloat2( &b, av );
+	}
+}
+
 void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_t channels )
 {
 	assert( initialized );
@@ -269,7 +288,6 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 		}
 
 		/* Reverse the input array. */
-		uint32_t hi_bit = msb - 1;
 		const ReverseBits reverseBits{ msb };
 		for( uint32_t i = 0; i < N; i++ )
 		{
