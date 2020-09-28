@@ -50,6 +50,7 @@ static inline void fft_init_std()
 	}
 }
 
+// Initialize the table using double-precision sin/cos from the standard library
 static inline void fft_init_precise()
 {
 	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
