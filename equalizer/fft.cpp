@@ -218,13 +218,13 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 	assert( initialized );
 
 	{
-		for( unsigned int i = 0, j = 0; i < N; j++, i += channels )
+		for( uint32_t i = 0, j = 0; i < N; j++, i += channels )
 			/* Taking just the left channel for now... */
 			output_data[ j ] = input_data[ i ];
 
 		N = N / channels;
 		assert( N <= MAX_SAMPLES );
-		unsigned int msb = get_msb( N );
+		uint32_t msb = get_msb( N );
 
 		if( ( N & ( N - 1 ) ) )
 		{
@@ -236,11 +236,11 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 		}
 
 		/* Reverse the input array. */
-		unsigned int hi_bit = msb - 1;
+		uint32_t hi_bit = msb - 1;
 		const ReverseBits reverseBits{ msb };
-		for( unsigned int i = 0; i < N; i++ )
+		for( uint32_t i = 0; i < N; i++ )
 		{
-			const unsigned int r = reverseBits( i );
+			const uint32_t r = reverseBits( i );
 			if( i < r )
 				std::swap( output_data[ i ], output_data[ r ] );
 		}
