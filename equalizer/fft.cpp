@@ -13,6 +13,11 @@ static bool initialized = false;
 // Transposing to the correct layout doubled the performance right away.
 static complex omega_vec[ MAX_SAMPLES ][ K ];
 
+// Piece of the pre-computed table with 4 numbers omega_vec[8][0] to omega_vec[8][3]
+alignas( 32 ) static complex omega_vec_span4[ 4 ];
+// Piece of the pre-computed table with 8 numbers omega_vec[16][0] to omega_vec[16][7]
+alignas( 32 ) static complex omega_vec_span8[ 8 ];
+
 // Old implementation no longer in use, see reverseBits.h and .cpp
 static inline unsigned int reverse_bits( unsigned int n, unsigned int num_bits )
 {
@@ -153,6 +158,14 @@ void fft_init()
 	fft_init_x4();
 	// fft_init_x2();
 #endif
+
+	__m128 imag = _mm_setr_ps( 0, minus2pi / 8, 2 * minus2pi / 8, 3 * minus2pi / 8 );
+	computeOmegaVec_x4( imag, (float*)&omega_vec_span4 );
+
+	imag = _mm_setr_ps( 0, minus2pi / 16, 2 * minus2pi / 16, 3 * minus2pi / 16 );
+	computeOmegaVec_x4( imag, (float*)&omega_vec_span8 );
+	imag = _mm_setr_ps( 4 * minus2pi / 16, 5 * minus2pi / 16, 6 * minus2pi / 16, 7 * minus2pi / 16 );
+	computeOmegaVec_x4( imag, (float*)&omega_vec_span8[ 4 ] );
 	initialized = true;
 }
 
@@ -194,18 +207,70 @@ static __forceinline void fft_run_main_unroll( uint32_t N, complex *output_data 
 		complex* out1 = &output_data[ j ];
 		complex* out2 = &output_data[ j + wingspan ];
 		if constexpr( 1 == wingspan )
-			fftMainLoop( omegaBegin, out1, out2 );
+			fftMainLoop_one( out1, out2 );
 		else if constexpr( 2 == wingspan )
-			fftMainLoop_x2( omegaBegin, out1, out2 );
-		else if constexpr( 4 == wingspan )
-			fftMainLoop_x4( omegaBegin, out1, out2 );
-		else if constexpr( 8 == wingspan )
-		{
-			fftMainLoop_x4( omegaBegin, out1, out2 );
-			fftMainLoop_x4( omegaBegin + 4, out1 + 4, out2 + 4 );
-		}
+			fftMainLoop_span2( out1, out2 );
 		else
 			assert( false );
+	}
+}
+
+template<>
+static __forceinline void fft_run_main_unroll<4>( uint32_t N, complex *output_data )
+{
+	constexpr uint32_t wingspan = 4;
+	constexpr uint32_t n = wingspan * 2;
+	// Loading these things into registers outside of the inner loop is what gives the performance win.
+	const float* omega_src = (const float*)&omega_vec_span4;
+#ifdef __AVX__
+	const __m256 omega = _mm256_load_ps( omega_src );
+#else
+	const __m128 omegaLow = _mm_load_ps( omega_src );
+	const __m128 omegaHigh = _mm_load_ps( omega_src + 4 );
+#endif
+
+	for( uint32_t j = 0; j < N; j += wingspan * 2 )
+	{
+		complex* out1 = &output_data[ j ];
+		complex* out2 = &output_data[ j + wingspan ];
+#ifdef __AVX__
+		fftMainLoop_x4( omega, out1, out2 );
+#else
+		fftMainLoop_x2( omegaLow, out1, out2 );
+		fftMainLoop_x2( omegaHigh, out1 + 2, out2 + 2 );
+#endif
+	}
+}
+
+template<>
+static __forceinline void fft_run_main_unroll<8>( uint32_t N, complex *output_data )
+{
+	constexpr uint32_t wingspan = 8;
+	constexpr uint32_t n = wingspan * 2;
+	const float* omega_src = (const float*)&omega_vec_span8;
+#ifdef __AVX__
+	const __m256 omega0 = _mm256_load_ps( omega_src );
+	const __m256 omega1 = _mm256_load_ps( omega_src + 8 );
+#else
+	const __m128 omega0 = _mm_load_ps( omega_src );
+	const __m128 omega1 = _mm_load_ps( omega_src + 4 );
+	const __m128 omega2 = _mm_load_ps( omega_src + 8 );
+	const __m128 omega3 = _mm_load_ps( omega_src + 12 );
+#endif
+
+	for( uint32_t j = 0; j < N; j += wingspan * 2 )
+	{
+		complex* out1 = &output_data[ j ];
+		complex* out2 = &output_data[ j + wingspan ];
+#ifdef __AVX__
+		fftMainLoop_x4( omega0, out1, out2 );
+		fftMainLoop_x4( omega1, out1 + 4, out2 + 4 );
+#else
+		fftMainLoop_x2( omega0, out1, out2 );
+		fftMainLoop_x2( omega1, out1 + 2, out2 + 2 );
+		fftMainLoop_x2( omega2, out1 + 4, out2 + 4 );
+		fftMainLoop_x2( omega3, out1 + 6, out2 + 6 );
+#endif
 	}
 }
 
@@ -310,9 +375,12 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 		// wingspan 4
 		if( 4 >= N ) return;
 		fft_run_main_unroll<4>( N, output_data );
+		// wingspan 8
+		if( 8 >= N ) return;
+		fft_run_main_unroll<8>( N, output_data );
 
 		// For 8 and more we use actual inner loop; small loops are bad for branch predictor, the exit condition changes too often.
-		for( uint32_t wingspan = 8; wingspan < N; wingspan *= 2 )
+		for( uint32_t wingspan = 16; wingspan < N; wingspan *= 2 )
 			fft_run_main_n( wingspan, N, output_data );
 #endif
 	}

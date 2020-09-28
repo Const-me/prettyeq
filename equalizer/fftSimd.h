@@ -103,16 +103,32 @@ __forceinline XMVECTOR multiplyComplex( XMVECTOR2 x, XMVECTOR2 y )
 	return res;
 }
 
+__forceinline __m128 negateHighHalf( __m128 v )
+{
+	return _mm_xor_ps( v, _mm_setr_ps( 0, 0, -0.0f, -0.0f ) );
+}
+
 // a1 = a1 + om * a2; a2 = a1 - om * a2
 __forceinline void fftMainLoop( const complex* om, complex* a1c, complex* a2c )
 {
-	const XMVECTOR2 omega = loadFloat2Dup( om );
+	const XMVECTOR2 omegaDup = loadFloat2Dup( om );
 	const XMVECTOR2 a1 = loadFloat2( a2c );
 	const XMVECTOR a0dup = loadFloat2Dup( a1c );
 
-	XMVECTOR product = multiplyComplex( omega, a1 );
+	XMVECTOR product = multiplyComplex( omegaDup, a1 );
 	// Negate the upper copy, to compute both ( a1 + product ) and ( a1 - product ) in one shot
-	product = _mm_xor_ps( product, _mm_setr_ps( 0, 0, -0.0f, -0.0f ) );
+	product = negateHighHalf( product );
+	const XMVECTOR result = _mm_add_ps( a0dup, product );
+	storeFloat2( a1c, result );
+	storeFloat2( a2c, getHigh( result ) );
+}
+
+// Specialization of the above for omega = real 1.0
+__forceinline void fftMainLoop_one( complex* a1c, complex* a2c )
+{
+	const XMVECTOR a1dup = loadFloat2Dup( a2c );
+	const XMVECTOR a0dup = loadFloat2Dup( a1c );
+	const XMVECTOR product = negateHighHalf( a1dup );
 	const XMVECTOR result = _mm_add_ps( a0dup, product );
 	storeFloat2( a1c, result );
 	storeFloat2( a2c, getHigh( result ) );
@@ -143,16 +159,36 @@ __forceinline XMVECTOR multiplyComplex_x2( const XMVECTOR x, const XMVECTOR y )
 }
 
 // Same as fftMainLoop, handles 2 complex numbers
-__forceinline void fftMainLoop_x2( const complex* om, complex* a1c, complex* a2c )
+__forceinline void fftMainLoop_x2( const XMVECTOR omega, complex* a1c, complex* a2c )
 {
 	// Full-vector loads/stores are more efficient, especially so when they happen to be aligned.
 	// Dual-channel DDR delivers exactly 128 bits per transaction.
 	// Too bad VC++ 2017 optimizer is unaware, and fuses these loads into other instructions so the code does 2 loads from the same address :-(
-	const XMVECTOR omega = _mm_loadu_ps( (const float*)om );
 	const XMVECTOR a1 = _mm_loadu_ps( (const float*)a1c );
 	const XMVECTOR a2 = _mm_loadu_ps( (const float*)a2c );
 
 	const XMVECTOR product = multiplyComplex_x2( omega, a2 );
+
+	_mm_storeu_ps( (float*)a1c, _mm_add_ps( a1, product ) );
+	_mm_storeu_ps( (float*)a2c, _mm_sub_ps( a1, product ) );
+}
+
+__forceinline void fftMainLoop_x2( const complex* om, complex* a1c, complex* a2c )
+{
+	const XMVECTOR omega = _mm_loadu_ps( (const float*)om );
+	fftMainLoop_x2( omega, a1c, a2c );
+}
+
+// Specialization of the above for two omegas [ 1, 0 ], [ 0, -1 ]
+__forceinline void fftMainLoop_span2( complex* a1c, complex* a2c )
+{
+	const XMVECTOR a1 = _mm_loadu_ps( (const float*)a1c );
+	const XMVECTOR a2 = _mm_loadu_ps( (const float*)a2c );
+	// The first omega is real 1.0, multiplication does nothing
+	// The second number is [ 0, -1 ], multiplication by that number flips values and negates the imaginary one:
+	// [ a, b ] * [ 0, -1 ] = [ b, -a ]
+	XMVECTOR product = _mm_shuffle_ps( a2, a2, _MM_SHUFFLE( 2, 3, 1, 0 ) );
+	product = _mm_xor_ps( product, _mm_setr_ps( 0, 0, 0, -0.0f ) );
 
 	_mm_storeu_ps( (float*)a1c, _mm_add_ps( a1, product ) );
 	_mm_storeu_ps( (float*)a2c, _mm_sub_ps( a1, product ) );
@@ -178,9 +214,8 @@ __forceinline __m256 multiplyComplex_x4( const __m256 x, const __m256 y )
 }
 
 // Same as fftMainLoop, handles 4 complex numbers
-__forceinline void fftMainLoop_x4( const complex* om, complex* a1c, complex* a2c )
+__forceinline void fftMainLoop_x4( const __m256 omega, complex* a1c, complex* a2c )
 {
-	const __m256 omega = _mm256_loadu_ps( (const float*)om );
 	const __m256 a1 = _mm256_loadu_ps( (const float*)a1c );
 	const __m256 a2 = _mm256_loadu_ps( (const float*)a2c );
 
@@ -188,6 +223,11 @@ __forceinline void fftMainLoop_x4( const complex* om, complex* a1c, complex* a2c
 
 	_mm256_storeu_ps( (float*)a1c, _mm256_add_ps( a1, product ) );
 	_mm256_storeu_ps( (float*)a2c, _mm256_sub_ps( a1, product ) );
+}
+__forceinline void fftMainLoop_x4( const complex* om, complex* a1c, complex* a2c )
+{
+	const __m256 omega = _mm256_loadu_ps( (const float*)om );
+	fftMainLoop_x4( omega, a1c, a2c );
 }
 #else
 __forceinline void fftMainLoop_x4( const complex* om, complex* a1c, complex* a2c )
