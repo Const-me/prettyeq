@@ -17,31 +17,6 @@ static bool initialized = false;
 // No need to waste memory and CPU time computing the rest of them.
 static complex omega_vec_log[ MAX_SAMPLES_LOG_2 ][ K ];
 
-// Piece of the pre-computed table with 4 numbers omega_vec[8][0] to omega_vec[8][3]
-alignas( 32 ) static complex omega_vec_span4[ 4 ];
-// Piece of the pre-computed table with 8 numbers omega_vec[16][0] to omega_vec[16][7]
-alignas( 32 ) static complex omega_vec_span8[ 8 ];
-
-// Old implementation no longer in use, see reverseBits.h and .cpp
-static inline unsigned int reverse_bits( unsigned int n, unsigned int num_bits )
-{
-	int i, j;
-	unsigned int res = 0;
-
-	i = 0;
-	j = num_bits;
-	while( i <= j )
-	{
-		unsigned int lower_mask = 1 << i;
-		unsigned int upper_mask = ( 1 << num_bits ) >> i;
-		unsigned int shift = j - i;
-		res |= ( ( n >> shift ) & lower_mask ) | ( ( n << shift ) & upper_mask );
-		i++;
-		j--;
-	}
-	return res;
-}
-
 // Processors have an instruction for that, very fast.
 static inline uint32_t get_msb( uint32_t v )
 {
@@ -80,21 +55,6 @@ static void fft_init_std()
 }
 
 constexpr float minus2pi = (float)( -2.0 * M_PI );
-
-static void fft_init_simd()
-{
-	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
-	{
-		const uint32_t n = 1u << nl;
-		const float mulDivN = minus2pi / n;
-		for( unsigned int k = 0; k < K; k++ )
-		{
-			const float imag = (float)k * mulDivN;
-			const __m128 result = computeOmegaVec( imag );
-			storeComplex( omega_vec_log[ nl ][ k ], result );
-		}
-	}
-}
 
 static void fft_init_x4()
 {
@@ -143,18 +103,8 @@ void fft_init()
 	fft_init_x8();
 #else
 	// fft_init_std();
-	// fft_init_simd();
 	fft_init_x4();
-	// fft_init_x2();
 #endif
-
-	__m128 imag = _mm_setr_ps( 0, minus2pi / 8, 2 * minus2pi / 8, 3 * minus2pi / 8 );
-	computeOmegaVec_x4( imag, (float*)&omega_vec_span4 );
-
-	imag = _mm_setr_ps( 0, minus2pi / 16, 2 * minus2pi / 16, 3 * minus2pi / 16 );
-	computeOmegaVec_x4( imag, (float*)&omega_vec_span8 );
-	imag = _mm_setr_ps( 4 * minus2pi / 16, 5 * minus2pi / 16, 6 * minus2pi / 16, 7 * minus2pi / 16 );
-	computeOmegaVec_x4( imag, (float*)&omega_vec_span8[ 4 ] );
 	initialized = true;
 }
 
@@ -169,21 +119,6 @@ static __forceinline void writeZeros( complex* pointer, uint32_t count )
 	if( 0 != ( count % 2 ) )
 		storeFloat2( pointer, zero );
 }
-
-/* static __forceinline void fft_run_main( uint32_t wingspan, uint32_t N, complex *output_data )
-{
-	const uint32_t n = wingspan * 2;
-	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
-	const complex* const omegaEnd = omegaBegin + wingspan;
-
-	for( uint32_t j = 0; j < N; j += wingspan * 2 )
-	{
-		complex* out1 = &output_data[ j ];
-		complex* out2 = &output_data[ j + wingspan ];
-		for( const complex* om = omegaBegin; om < omegaEnd; om++, out1++, out2++ )
-			fftMainLoop( om, out1, out2 );
-	}
-} */
 
 // Template version for small values of wingspan, unrolls the inner loop for better performance
 template<uint32_t wingspan>
@@ -209,7 +144,7 @@ static __forceinline void fft_run_main_unroll<4>( uint32_t N, complex *output_da
 	constexpr uint32_t wingspan = 4;
 	constexpr uint32_t n = wingspan * 2;
 	// Loading these things into registers outside of the inner loop is what gives the performance win.
-	const float* omega_src = (const float*)&omega_vec_span4;
+	const float* omega_src = (const float*)&omega_vec_log[ 3 ][ 0 ];
 #ifdef __AVX__
 	const __m256 omega = _mm256_load_ps( omega_src );
 #else
@@ -235,7 +170,7 @@ static __forceinline void fft_run_main_unroll<8>( uint32_t N, complex *output_da
 {
 	constexpr uint32_t wingspan = 8;
 	constexpr uint32_t n = wingspan * 2;
-	const float* omega_src = (const float*)&omega_vec_span8;
+	const float* omega_src = (const float*)&omega_vec_log[ 4 ][ 0 ];
 #ifdef __AVX__
 	const __m256 omega0 = _mm256_load_ps( omega_src );
 	const __m256 omega1 = _mm256_load_ps( omega_src + 8 );
@@ -314,14 +249,7 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 		const ReverseBits reverseBits{ msb };
 		for( unsigned int i = 0; i < N; i++ )
 		{
-#if 0
-			unsigned int r1 = reverse_bits( i, hi_bit );
-			unsigned int r2 = reverseBits( i );
-			assert( r1 == r2 );
-			const unsigned int r = r1;
-#else
 			const unsigned int r = reverseBits( i );
-#endif
 			if( i < r )
 				std::swap( output_data[ i ], output_data[ r ] );
 		}
