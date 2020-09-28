@@ -124,7 +124,6 @@ static __forceinline void writeZeros( complex* pointer, uint32_t count )
 template<uint32_t wingspan>
 static __forceinline void fft_run_main_unroll( uint32_t N, complex *output_data )
 {
-	constexpr uint32_t n = wingspan * 2;
 	for( uint32_t j = 0; j < N; j += wingspan * 2 )
 	{
 		complex* out1 = &output_data[ j ];
@@ -295,7 +294,7 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 		if( 8 >= N ) return;
 		fft_run_main_unroll<8>( N, output_data );
 
-		// For 8 and more we use actual inner loop; small loops are bad for branch predictor, the exit condition changes too often.
+		// For 16 and more we use actual inner loop; small loops are bad for branch predictor, the exit condition changes too often.
 		for( uint32_t wingspan = 16; wingspan < N; wingspan *= 2 )
 			fft_run_main_n( wingspan, N, output_data );
 #endif
