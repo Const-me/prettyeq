@@ -11,7 +11,11 @@ static bool initialized = false;
 // The original code had this array transposed, i.e. [ K ][ MAX_SAMPLES ]
 // Despite the inner loops of both fft_init and fft_run has a loop over K.
 // Transposing to the correct layout doubled the performance right away.
-static complex omega_vec[ MAX_SAMPLES ][ K ];
+// static complex omega_vec[ MAX_SAMPLES ][ K ];
+
+// Actually, we only use rows of that table with row indices being powers of 2.
+// No need to waste memory and CPU time computing the rest of them.
+static complex omega_vec_log[ MAX_SAMPLES_LOG_2 ][ K ];
 
 // Piece of the pre-computed table with 4 numbers omega_vec[8][0] to omega_vec[8][3]
 alignas( 32 ) static complex omega_vec_span4[ 4 ];
@@ -39,7 +43,7 @@ static inline unsigned int reverse_bits( unsigned int n, unsigned int num_bits )
 }
 
 // Processors have an instruction for that, very fast.
-static inline unsigned int get_msb( unsigned int v )
+static inline uint32_t get_msb( uint32_t v )
 {
 	assert( 0 != v );
 #ifdef _MSC_VER
@@ -61,15 +65,16 @@ static void fft_init_std()
 	constexpr float XM_E = (float)M_E;
 	constexpr float mul = (float)( -2 * M_PI );
 
-	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
+	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
 	{
-		const float mulDivN = ( n != 0 ) ? mul / n : 0.0f;
+		const uint32_t n = 1u << nl;
+		const float mulDivN = mul / n;
 		for( unsigned int k = 0; k < K; k++ )
 		{
 			const float imag = (float)k * mulDivN;
 			const std::complex<float> pp{ 0, imag };
 			const std::complex<float> result = std::pow( XM_E, pp );
-			omega_vec[ n ][ k ] = complex{ result.real(), result.imag() };
+			omega_vec_log[ nl ][ k ] = complex{ result.real(), result.imag() };
 		}
 	}
 }
@@ -78,33 +83,15 @@ constexpr float minus2pi = (float)( -2.0 * M_PI );
 
 static void fft_init_simd()
 {
-	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
+	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
 	{
-		const float mulDivN = ( n != 0 ) ? minus2pi / n : 0.0f;
+		const uint32_t n = 1u << nl;
+		const float mulDivN = minus2pi / n;
 		for( unsigned int k = 0; k < K; k++ )
 		{
 			const float imag = (float)k * mulDivN;
 			const __m128 result = computeOmegaVec( imag );
-			storeComplex( omega_vec[ n ][ k ], result );
-		}
-	}
-}
-
-static void fft_init_x2()
-{
-	const __m128i kVecIncrement = _mm_set1_epi32( 2 );
-	const __m128i kVecInitial = _mm_setr_epi32( 0, 1, 2, 3 );
-	static_assert( 0 == ( K % 2 ) );
-	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
-	{
-		const float mulDivN_Scalar = ( n != 0 ) ? minus2pi / n : 0.0f;
-		const __m128 mulDivN = _mm_set1_ps( mulDivN_Scalar );
-		__m128i kVec = kVecInitial;
-		for( unsigned int k = 0; k < K; k += 2, kVec = _mm_add_epi32( kVec, kVecIncrement ) )
-		{
-			const __m128 imag = _mm_mul_ps( _mm_cvtepi32_ps( kVec ), mulDivN );
-			const __m128 result = computeOmegaVec_x2( imag );
-			_mm_storeu_ps( (float*)( &omega_vec[ n ][ k ] ), result );
+			storeComplex( omega_vec_log[ nl ][ k ], result );
 		}
 	}
 }
@@ -114,15 +101,16 @@ static void fft_init_x4()
 	const __m128i kVecIncrement = _mm_set1_epi32( 4 );
 	const __m128i kVecInitial = _mm_setr_epi32( 0, 1, 2, 3 );
 	static_assert( 0 == ( K % 4 ) );
-	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
+	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
 	{
-		const float mulDivN_Scalar = ( n != 0 ) ? minus2pi / n : 0.0f;
+		const uint32_t n = 1u << nl;
+		const float mulDivN_Scalar = minus2pi / n;
 		const __m128 mulDivN = _mm_set1_ps( mulDivN_Scalar );
 		__m128i kVec = kVecInitial;
 		for( unsigned int k = 0; k < K; k += 4, kVec = _mm_add_epi32( kVec, kVecIncrement ) )
 		{
 			const __m128 imag = _mm_mul_ps( _mm_cvtepi32_ps( kVec ), mulDivN );
-			float* const dest = (float*)( &omega_vec[ n ][ k ] );
+			float* const dest = (float*)( &omega_vec_log[ nl ][ k ] );
 			computeOmegaVec_x4( imag, dest );
 		}
 	}
@@ -133,15 +121,16 @@ static void fft_init_x8()
 	const __m256i kVecIncrement = _mm256_set1_epi32( 8 );
 	const __m256i kVecInitial = _mm256_setr_epi32( 0, 1, 2, 3, 4, 5, 6, 7 );
 	static_assert( 0 == ( K % 8 ) );
-	for( unsigned int n = 0; n < MAX_SAMPLES; n++ )
+	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
 	{
-		const float mulDivN_Scalar = ( n != 0 ) ? minus2pi / n : 0.0f;
+		const uint32_t n = 1u << nl;
+		const float mulDivN_Scalar = minus2pi / n;
 		const __m256 mulDivN = _mm256_set1_ps( mulDivN_Scalar );
 		__m256i kVec = kVecInitial;
 		for( unsigned int k = 0; k < K; k += 8, kVec = _mm256_add_epi32( kVec, kVecIncrement ) )
 		{
 			const __m256 imag = _mm256_mul_ps( _mm256_cvtepi32_ps( kVec ), mulDivN );
-			float* const dest = (float*)( &omega_vec[ n ][ k ] );
+			float* const dest = (float*)( &omega_vec_log[ nl ][ k ] );
 			computeOmegaVec_x8( imag, dest );
 		}
 	}
@@ -201,7 +190,6 @@ template<uint32_t wingspan>
 static __forceinline void fft_run_main_unroll( uint32_t N, complex *output_data )
 {
 	constexpr uint32_t n = wingspan * 2;
-	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
 	for( uint32_t j = 0; j < N; j += wingspan * 2 )
 	{
 		complex* out1 = &output_data[ j ];
@@ -279,7 +267,7 @@ static __forceinline void fft_run_main_n( uint32_t wingspan, uint32_t N, complex
 {
 	assert( wingspan >= 8 && 0 == ( wingspan % 8 ) );
 	const uint32_t n = wingspan * 2;
-	const complex* const omegaBegin = &omega_vec[ n ][ 0 ];
+	const complex* const omegaBegin = &omega_vec_log[ get_msb( n ) ][ 0 ];
 	const complex* const omegaEnd = omegaBegin + wingspan;
 
 	for( uint32_t j = 0; j < N; j += wingspan * 2 )

@@ -6,7 +6,8 @@
 #include "fftSimd.h"
 #include <smmintrin.h>
 
-#define MAX_SAMPLES 4096
+#define MAX_SAMPLES_LOG_2 12
+#define MAX_SAMPLES ( 1 << MAX_SAMPLES_LOG_2 )
 #define K (MAX_SAMPLES / 2)
 
 #define FFT_BUCKET_WIDTH(NUM_SAMPLES) (44100/(NUM_SAMPLES))
