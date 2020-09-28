@@ -14,10 +14,10 @@ static bool initialized = false;
 // static complex omega_vec[ MAX_SAMPLES ][ K ];
 
 // Actually, we only use rows of that table with row indices being powers of 2.
-// No need to waste memory and CPU time computing the rest of them.
-static complex omega_vec_log[ MAX_SAMPLES_LOG_2 ][ K ];
+// No need to waste memory and CPU time computing the rest of these rows.
+alignas( 32 ) static complex omega_vec_log[ MAX_SAMPLES_LOG_2 ][ K ];
 
-// Processors have an instruction for that, very fast.
+// Index of the most significant non-zero bit. Processors have an instruction for that, very fast.
 static inline uint32_t get_msb( uint32_t v )
 {
 	assert( 0 != v );
@@ -30,20 +30,16 @@ static inline uint32_t get_msb( uint32_t v )
 #endif
 }
 
-__forceinline void storeComplex( complex& dest, __m128 val )
-{
-	storeFloat2( &dest, val );
-}
+constexpr float minus2pi = (float)( -2.0 * M_PI );
 
+// Initialize lookup table using std::complex<float> from the standard library
 static void fft_init_std()
 {
 	constexpr float XM_E = (float)M_E;
-	constexpr float mul = (float)( -2 * M_PI );
-
 	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
 	{
 		const uint32_t n = 1u << nl;
-		const float mulDivN = mul / n;
+		const float mulDivN = minus2pi / n;
 		for( unsigned int k = 0; k < K; k++ )
 		{
 			const float imag = (float)k * mulDivN;
@@ -54,8 +50,7 @@ static void fft_init_std()
 	}
 }
 
-constexpr float minus2pi = (float)( -2.0 * M_PI );
-
+// Initialize the table with SSE SIMD
 static void fft_init_x4()
 {
 	const __m128i kVecIncrement = _mm_set1_epi32( 4 );
@@ -76,6 +71,7 @@ static void fft_init_x4()
 	}
 }
 #ifdef __AVX2__
+// Initialize the table with AVX2 SIMD
 static void fft_init_x8()
 {
 	const __m256i kVecIncrement = _mm256_set1_epi32( 8 );
@@ -142,9 +138,10 @@ static __forceinline void fft_run_main_unroll<4>( uint32_t N, complex *output_da
 {
 	constexpr uint32_t wingspan = 4;
 	constexpr uint32_t n = wingspan * 2;	// 8 = 2^3
-	// Loading these things into registers outside of the inner loop is what gives the performance win.
+	// Loading these things into registers outside of the inner loop is what gives the performance win
 	const float* omega_src = (const float*)&omega_vec_log[ 3 ][ 0 ];
 #ifdef __AVX__
+	// Note we don't need AVX2 for this part, it only does float math and AVX1 is enough.
 	const __m256 omega = _mm256_load_ps( omega_src );
 #else
 	const __m128 omegaLow = _mm_load_ps( omega_src );
@@ -234,12 +231,7 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 			/* Pad out so FFT is a power of 2. */
 			msb++;
 			unsigned int new_N = 1 << msb;
-#if 0
-			for( unsigned int i = N; i < new_N; i++ )
-				output_data[ i ] = 0.0f;
-#else
 			writeZeros( &output_data[ N ], new_N - N );
-#endif
 			N = new_N;
 		}
 
@@ -255,32 +247,6 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 	}
 
 	{
-#if 0
-		/* Simple radix-2 DIT FFT */
-		unsigned int wingspan = 1;
-		while( wingspan < N )
-		{
-			/* unsigned int n = wingspan * 2;
-			for( unsigned int j = 0; j < N; j += wingspan * 2 )
-			{
-				for( unsigned int k = 0; k < wingspan; k++ )
-				{
-					/* complex omega = omega_vec[ k ][ n ];
-					// complex omega = computeOmega( k, n );
-					complex a0 = output_data[ k + j ];
-					complex a1 = output_data[ k + j + wingspan ];
-					// output_data[ k + j ] = a0 + omega * a1;
-					// output_data[ k + j + wingspan ] = a0 - omega * a1;
-					const complex prod = omega * a1;
-					output_data[ k + j ] = a0 + prod;
-					output_data[ k + j + wingspan ] = a0 - prod; * /
-					fftMainLoop( &omega_vec[ n ][ k ], &output_data[ k + j ], &output_data[ k + j + wingspan ] );
-				}
-			} */
-			fft_run_main( wingspan, N, output_data );
-			wingspan *= 2;
-		}
-#else
 		// wingspan 1
 		if( 1 >= N ) return;
 		fft_run_main_unroll<1>( N, output_data );
@@ -297,6 +263,5 @@ void fft_run( const float *input_data, complex *output_data, uint32_t N, uint32_
 		// For 16 and more we use actual inner loop; small loops are bad for branch predictor, the exit condition changes too often.
 		for( uint32_t wingspan = 16; wingspan < N; wingspan *= 2 )
 			fft_run_main_n( wingspan, N, output_data );
-#endif
 	}
 }
