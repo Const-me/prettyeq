@@ -17,6 +17,7 @@
     <ClInclude Include="Stopwatch.hpp" />
     <ClInclude Include="complex.h" />
     <ClInclude Include="reverseBits.h" />
+    <ClInclude Include="simdUtils.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="sse.natvis" />

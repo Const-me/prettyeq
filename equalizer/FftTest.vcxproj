@@ -165,6 +165,7 @@
     <ClInclude Include="fftSimd.h" />
     <ClInclude Include="macro.h" />
     <ClInclude Include="reverseBits.h" />
+    <ClInclude Include="simdUtils.hpp" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="Stopwatch.hpp" />
   </ItemGroup>

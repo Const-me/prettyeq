@@ -1,68 +1,9 @@
 #pragma once
-#include <emmintrin.h>
-#include <pmmintrin.h>	// MOVDDUP and ADDSUBPS are from SSE3 set
-#if 1
-#include <immintrin.h>	// FMA
-#else
-// Workarounds if you don't want to require FMA3 instruction set:
-// https://en.wikipedia.org/wiki/FMA_instruction_set#CPUs_with_FMA3
-
-__forceinline __m128 _mm_fmadd_ps( __m128 a, __m128 b, __m128 c )
-{
-	return _mm_add_ps( _mm_mul_ps( a, b ), c );
-}
-__forceinline __m128 _mm_fnmadd_ps( __m128 a, __m128 b, __m128 c )
-{
-	return _mm_sub_ps( c, _mm_mul_ps( a, b ) );
-}
-__forceinline __m128 _mm_fnmadd_ss( __m128 a, __m128 b, __m128 c )
-{
-	return _mm_sub_ss( c, _mm_mul_ss( a, b ) );
-}
-__forceinline __m128 _mm_fmaddsub_ps( __m128 a, __m128 b, __m128 c )
-{
-	return _mm_addsub_ps( _mm_mul_ps( a, b ), c );
-}
-#endif
+#include "fft.h"
 #include "complex.h"
 
-// ==== Miscellaneous utilities ====
-using XMVECTOR2 = __m128;
-using XMVECTOR = __m128;
-
-// Load 2D vector from memory
-__forceinline XMVECTOR2 loadFloat2( const void* pointer )
-{
-	return _mm_castpd_ps( _mm_load_sd( (const double*)pointer ) );
-}
-
-// [ a, b, a, b ] where [ a, b ] are 2 floats at the address
-__forceinline XMVECTOR loadFloat2Dup( const void* pointer )
-{
-	// Duplicating while loading is free, compare these two instructions:
-	// https://uops.info/html-instr/MOVDDUP_XMM_M64.html
-	// https://uops.info/html-instr/MOVSD_XMM_XMM_M64.html
-	return _mm_castpd_ps( _mm_loaddup_pd( (const double*)pointer ) );
-}
-
-// Store a 2D vector
-__forceinline void storeFloat2( void* pointer, XMVECTOR2 vec )
-{
-	_mm_store_sd( (double*)pointer, _mm_castps_pd( vec ) );
-}
-
-// [ a, b, c, d ] => [ c, d, a, b ]
-__forceinline XMVECTOR flipHighLow( XMVECTOR v )
-{
-	return _mm_shuffle_ps( v, v, _MM_SHUFFLE( 1, 0, 3, 2 ) );
-}
-
-__forceinline XMVECTOR2 getHigh( XMVECTOR v )
-{
-	return _mm_movehl_ps( v, v );
-}
-
 // ==== Vectorizing fft_init ====
+// When PRECISE_TABLE is set in fft.h, these pieces of code are not used.
 
 // pow( M_E, complex{ 0, valScalar } )
 // https://en.wikipedia.org/wiki/Complex_number#Exponential_function, Euler's formula says the result is

@@ -33,7 +33,7 @@ static inline uint32_t get_msb( uint32_t v )
 constexpr float minus2pi = (float)( -2.0 * M_PI );
 
 // Initialize lookup table using std::complex<float> from the standard library
-static void fft_init_std()
+static inline void fft_init_std()
 {
 	constexpr float XM_E = (float)M_E;
 	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
@@ -50,8 +50,37 @@ static void fft_init_std()
 	}
 }
 
+static inline void fft_init_precise()
+{
+	for( uint32_t nl = 0; nl < MAX_SAMPLES_LOG_2; nl++ )
+	{
+		const uint32_t n = 1u << nl;
+		const double mulDivN = ( -2.0 * M_PI ) / n;
+		for( unsigned int k = 0; k < K; k++ )
+		{
+			const double imag = (double)k * mulDivN;
+			complex& res = omega_vec_log[ nl ][ k ];
+
+			// Euler's formula is almost 3x faster than std::pow( double, complex<double> )
+			res = complex
+			{
+				(float)cos( imag ),
+				(float)sin( imag )
+			};
+
+			/* const std::complex<double> pp{ 0, imag };
+			const std::complex<double> result = std::pow( M_E, pp );
+			res = complex
+			{
+				(float)result.real(),
+				(float)result.imag()
+			}; */
+		}
+	}
+}
+
 // Initialize the table with SSE SIMD
-static void fft_init_x4()
+static inline void fft_init_x4()
 {
 	const __m128i kVecIncrement = _mm_set1_epi32( 4 );
 	const __m128i kVecInitial = _mm_setr_epi32( 0, 1, 2, 3 );
@@ -72,7 +101,7 @@ static void fft_init_x4()
 }
 #ifdef __AVX2__
 // Initialize the table with AVX2 SIMD
-static void fft_init_x8()
+static inline void fft_init_x8()
 {
 	const __m256i kVecIncrement = _mm256_set1_epi32( 8 );
 	const __m256i kVecInitial = _mm256_setr_epi32( 0, 1, 2, 3, 4, 5, 6, 7 );
@@ -95,11 +124,15 @@ static void fft_init_x8()
 
 void fft_init()
 {
+#if FFT_PRECISE_TABLE
+	fft_init_precise();
+#else
 #ifdef __AVX2__
 	fft_init_x8();
 #else
 	// fft_init_std();
 	fft_init_x4();
+#endif
 #endif
 	initialized = true;
 }

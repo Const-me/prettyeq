@@ -3,7 +3,6 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include "complex.h"
-#include "fftSimd.h"
 #include <smmintrin.h>
 
 #define MAX_SAMPLES_LOG_2 12
@@ -13,6 +12,15 @@
 #define FFT_BUCKET_WIDTH(NUM_SAMPLES) (44100/(NUM_SAMPLES))
 #define FFT_SAMPLE_TO_FREQ(NUM_SAMPLES, SAMPLE_INDEX) (44100*(SAMPLE_INDEX)/(NUM_SAMPLES))
 #define FFT_FREQ_TO_SAMPLE(NUM_SAMPLES, FREQ) ((int)roundf((FREQ)*(NUM_SAMPLES)/44100))
+
+// Use double-precision math for the table.
+// Much slower than vectorized version, but still pretty fast overall, well under 0.5ms on my PC.
+#define FFT_PRECISE_TABLE true
+
+// Use FMA3 instructions
+#define FFT_USE_FMA3 true
+
+#include "simdUtils.hpp"
 
 inline float FFT_PSD( const complex& c )
 {

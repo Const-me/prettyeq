@@ -121,7 +121,14 @@ TestCases cases[] = {
 
 static inline bool float_approx_equal( float f1, float f2 ) 
 {
-	return fabsf( f1 - f2 ) > 0.00001 ? false : true;
+	// Not only FMA is faster, it's also more precise because only rounds once.
+	// Emulating FMA slightly decreases the precision of sin/cos code which computes the lookup table.
+#if defined( EMULATED_FMA ) && ( !FFT_PRECISE_TABLE )
+	constexpr float precision = 0.00003;
+#else
+	constexpr float precision = 0.00001;
+#endif
+	return fabsf( f1 - f2 ) > precision ? false : true;
 }
 
 void test_init()
